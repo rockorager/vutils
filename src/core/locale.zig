@@ -215,6 +215,36 @@ fn isContinuation(byte: u8) bool {
     return (byte & 0xC0) == 0x80;
 }
 
+/// Iterator over UTF-8 codepoints with GNU-compatible malformed sequence handling.
+/// Each invalid byte yields a single replacement character (U+FFFD).
+pub const Utf8Iterator = struct {
+    bytes: []const u8,
+    i: usize = 0,
+
+    pub fn init(bytes: []const u8) Utf8Iterator {
+        return .{ .bytes = bytes };
+    }
+
+    /// Returns the next codepoint, or null if at end of buffer.
+    pub fn next(self: *Utf8Iterator) ?u21 {
+        if (self.i >= self.bytes.len) return null;
+        const result = decodeUtf8(self.bytes[self.i..]);
+        self.i += result.len;
+        return result.codepoint;
+    }
+
+    /// Peek at the next codepoint without advancing.
+    pub fn peek(self: Utf8Iterator) ?u21 {
+        if (self.i >= self.bytes.len) return null;
+        return decodeUtf8(self.bytes[self.i..]).codepoint;
+    }
+
+    /// Returns remaining bytes not yet consumed.
+    pub fn rest(self: Utf8Iterator) []const u8 {
+        return self.bytes[self.i..];
+    }
+};
+
 test "isUtf8Locale with LC_ALL=C" {
     // Can't easily test env vars in unit tests, but the logic is straightforward
 }
