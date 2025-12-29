@@ -153,8 +153,17 @@
             maintainAspectRatio: false,
             interaction: { intersect: false, mode: 'index' },
             scales: {
-                x: { grid: { color: '#30363d' }, ticks: { color: '#8b949e', maxRotation: 45 } },
-                y: { grid: { color: '#30363d' }, ticks: { color: '#8b949e' }, beginAtZero: true }
+                x: { 
+                    grid: { color: '#30363d' }, 
+                    ticks: { color: '#8b949e', maxRotation: 45 },
+                    title: { display: true, text: 'commit', color: '#8b949e' }
+                },
+                y: { 
+                    grid: { color: '#30363d' }, 
+                    ticks: { color: '#8b949e' }, 
+                    beginAtZero: true,
+                    title: { display: true, text: 'ms', color: '#8b949e' }
+                }
             },
             plugins: { legend: { labels: { color: '#c9d1d9', boxWidth: 12, padding: 8 }, position: 'bottom' } }
         };
