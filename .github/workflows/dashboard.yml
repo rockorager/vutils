@@ -100,8 +100,8 @@ jobs:
       - name: Update benchmark data
         if: needs.benchmark.outputs.benchmark_json
         run: |
-          # Append new benchmark to history
-          echo '${{ needs.benchmark.outputs.benchmark_json }}' | jq -c . >> /tmp/new_bench.json
+          # Append new benchmark to history (wrap in array for jq add)
+          echo '${{ needs.benchmark.outputs.benchmark_json }}' | jq -c '[.]' > /tmp/new_bench.json
           
           # Merge with existing data (keep last 100 entries)
           jq -s 'add | .[-100:]' docs/data/benchmarks.json /tmp/new_bench.json > /tmp/merged.json
@@ -110,8 +110,8 @@ jobs:
       - name: Update conformance data
         if: needs.gnu-tests.outputs.conformance_json
         run: |
-          # Append new conformance to history
-          echo '${{ needs.gnu-tests.outputs.conformance_json }}' | jq -c . >> /tmp/new_conf.json
+          # Append new conformance to history (wrap in array for jq add)
+          echo '${{ needs.gnu-tests.outputs.conformance_json }}' | jq -c '[.]' > /tmp/new_conf.json
           
           # Merge with existing data (keep last 100 entries)
           jq -s 'add | .[-100:]' docs/data/conformance.json /tmp/new_conf.json > /tmp/merged.json
