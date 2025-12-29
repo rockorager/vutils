@@ -91,6 +91,8 @@ jobs:
   update-dashboard:
     needs: [benchmark, gnu-tests]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     
     steps:
       - uses: actions/checkout@v4
