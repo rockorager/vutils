@@ -5,6 +5,9 @@
 
 set -e
 
+# Ensure UTF-8 locale for consistent Unicode whitespace handling
+export LC_ALL=en_US.UTF-8
+
 WC_VUTILS="./zig-out/bin/vwc"
 
 # Find GNU wc: gwc on macOS, wc on Linux
