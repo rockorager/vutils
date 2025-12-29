@@ -1,0 +1,55 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            platform: darwin
+          - os: ubuntu-latest
+            platform: linux
+
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.14.0
+
+      - name: Install dependencies (macOS)
+        if: matrix.platform == 'darwin'
+        run: |
+          brew install coreutils
+          brew install --force uutils-coreutils || true
+
+      - name: Install dependencies (Linux)
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y busybox
+
+      - name: Build
+        run: zig build
+
+      - name: Unit tests
+        run: zig build test
+
+      - name: Integration tests
+        run: zig build integration
+
+      - name: Compare to BSD (macOS)
+        if: matrix.platform == 'darwin'
+        run: ./tests/compare_to_bsd.sh
+
+      - name: Compare to GNU
+        run: ./tests/compare_to_gnu.sh

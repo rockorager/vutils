@@ -5,11 +5,15 @@
 
 set -e
 
-WC_VUTILS="./zig-out/bin/wc"
-WC_GNU="gwc"
+WC_VUTILS="./zig-out/bin/vwc"
 
-if ! command -v $WC_GNU &> /dev/null; then
-    echo "GNU wc (gwc) not found. Install with: brew install coreutils"
+# Find GNU wc: gwc on macOS, wc on Linux
+if command -v gwc &> /dev/null; then
+    WC_GNU="gwc"
+elif [ "$(uname)" = "Linux" ]; then
+    WC_GNU="wc"
+else
+    echo "GNU wc not found. Install with: brew install coreutils"
     exit 1
 fi
 

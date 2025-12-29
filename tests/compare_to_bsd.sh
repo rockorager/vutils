@@ -4,7 +4,7 @@
 
 set -e
 
-WC_VUTILS="./zig-out/bin/wc"
+WC_VUTILS="./zig-out/bin/vwc"
 WC_BSD="/usr/bin/wc"
 
 PASS=0
