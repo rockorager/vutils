@@ -71,14 +71,14 @@ pub fn countBufferWithState(buf: []const u8, in_word_start: bool) CountState {
 }
 
 /// Count with full Unicode whitespace support
-/// Fast path for ASCII, falls back to uucode DFA decoder for multibyte
+/// Fast path for ASCII, uses custom decoder for multibyte to handle malformed sequences correctly
 pub fn countBufferUnicode(buf: []const u8, in_word_start: bool) CountState {
     var counts = Counts{ .bytes = buf.len };
     var in_word = in_word_start;
-    var iter = uucode.utf8.Iterator{ .bytes = buf, .i = 0 };
+    var i: usize = 0;
 
-    while (iter.i < buf.len) {
-        const byte = buf[iter.i];
+    while (i < buf.len) {
+        const byte = buf[i];
 
         // ASCII fast path (most common case)
         if (byte < 0x80) {
@@ -94,22 +94,23 @@ pub fn countBufferUnicode(buf: []const u8, in_word_start: bool) CountState {
                 in_word = true;
                 counts.words += 1;
             }
-            iter.i += 1;
+            i += 1;
             continue;
         }
 
-        // Multibyte: use iterator (already positioned)
-        if (iter.next()) |cp| {
-            counts.chars += 1;
+        // Multibyte: decode with proper malformed sequence handling
+        // Each malformed byte should be treated as a single replacement character (non-whitespace)
+        const decode_result = locale.decodeUtf8(buf[i..]);
+        counts.chars += 1;
 
-            const is_space = locale.isUnicodeWhitespace(cp);
-            if (is_space) {
-                in_word = false;
-            } else if (!in_word) {
-                in_word = true;
-                counts.words += 1;
-            }
+        const is_space = locale.isUnicodeWhitespace(decode_result.codepoint);
+        if (is_space) {
+            in_word = false;
+        } else if (!in_word) {
+            in_word = true;
+            counts.words += 1;
         }
+        i += decode_result.len;
     }
 
     return .{ .counts = counts, .in_word = in_word };
@@ -231,4 +232,20 @@ test "countNewlinesScalar matches SIMD" {
     try std.testing.expectEqual(simd_result, scalar_result);
 }
 
-// Unicode general_category tests moved to locale.zig
+test "malformed UTF-8 - lead byte followed by space" {
+    // C0 20 C1 20 - each lead byte followed by space should be 2 words each
+    // (lead byte = word, space = separator)
+    const buf = "\xc0 \xc1 ";
+    const result = countBufferUnicode(buf, false);
+    try std.testing.expectEqual(@as(u64, 2), result.counts.words);
+}
+
+test "malformed UTF-8 - multiple lead bytes with spaces (GNU wc behavior)" {
+    // Each malformed lead byte is a non-whitespace character (replacement char)
+    // Pattern: C0 SP C1 SP C2 SP ... = each pair is "word separator"
+    const buf = "\xc0 \xc1 \xc2 \xc3 \xc4 \xc5 \xc6 \xc7 \xc8 \xc9 \xca \xcb \xcc \xcd ";
+    const result = countBufferUnicode(buf, false);
+    try std.testing.expectEqual(@as(u64, 14), result.counts.words);
+}
+
+// decodeUtf8 tests are in locale.zig

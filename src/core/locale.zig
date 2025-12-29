@@ -134,6 +134,87 @@ pub inline fn isAsciiWhitespace(byte: u8) bool {
     };
 }
 
+/// Result of decoding a single UTF-8 codepoint
+pub const DecodeResult = struct {
+    codepoint: u21,
+    len: usize,
+};
+
+/// Decode a single UTF-8 codepoint with GNU-compatible malformed sequence handling.
+/// Each invalid byte is treated as a single replacement character (U+FFFD).
+/// This matches GNU coreutils behavior where malformed bytes don't consume following valid bytes.
+pub fn decodeUtf8(bytes: []const u8) DecodeResult {
+    if (bytes.len == 0) return .{ .codepoint = 0xFFFD, .len = 0 };
+
+    const b0 = bytes[0];
+
+    // ASCII (fast path)
+    if (b0 < 0x80) {
+        return .{ .codepoint = b0, .len = 1 };
+    }
+
+    // Continuation byte at start (0x80-0xBF) - invalid, treat as single replacement
+    if (b0 < 0xC0) {
+        return .{ .codepoint = 0xFFFD, .len = 1 };
+    }
+
+    // 2-byte sequence (0xC0-0xDF)
+    if (b0 < 0xE0) {
+        if (bytes.len < 2 or !isContinuation(bytes[1])) {
+            return .{ .codepoint = 0xFFFD, .len = 1 };
+        }
+        const cp = (@as(u21, b0 & 0x1F) << 6) | (bytes[1] & 0x3F);
+        // Overlong check: must be >= 0x80
+        if (cp < 0x80) return .{ .codepoint = 0xFFFD, .len = 2 };
+        return .{ .codepoint = cp, .len = 2 };
+    }
+
+    // 3-byte sequence (0xE0-0xEF)
+    if (b0 < 0xF0) {
+        if (bytes.len < 3 or !isContinuation(bytes[1]) or !isContinuation(bytes[2])) {
+            // Check how many valid continuations we have
+            if (bytes.len >= 2 and isContinuation(bytes[1])) {
+                return .{ .codepoint = 0xFFFD, .len = 2 };
+            }
+            return .{ .codepoint = 0xFFFD, .len = 1 };
+        }
+        const cp = (@as(u21, b0 & 0x0F) << 12) | (@as(u21, bytes[1] & 0x3F) << 6) | (bytes[2] & 0x3F);
+        // Overlong check: must be >= 0x800, and not surrogate (0xD800-0xDFFF)
+        if (cp < 0x800 or (cp >= 0xD800 and cp <= 0xDFFF)) {
+            return .{ .codepoint = 0xFFFD, .len = 3 };
+        }
+        return .{ .codepoint = cp, .len = 3 };
+    }
+
+    // 4-byte sequence (0xF0-0xF4)
+    if (b0 < 0xF5) {
+        if (bytes.len < 4 or !isContinuation(bytes[1]) or !isContinuation(bytes[2]) or !isContinuation(bytes[3])) {
+            // Check how many valid continuations we have
+            if (bytes.len >= 3 and isContinuation(bytes[1]) and isContinuation(bytes[2])) {
+                return .{ .codepoint = 0xFFFD, .len = 3 };
+            }
+            if (bytes.len >= 2 and isContinuation(bytes[1])) {
+                return .{ .codepoint = 0xFFFD, .len = 2 };
+            }
+            return .{ .codepoint = 0xFFFD, .len = 1 };
+        }
+        const cp = (@as(u21, b0 & 0x07) << 18) | (@as(u21, bytes[1] & 0x3F) << 12) |
+            (@as(u21, bytes[2] & 0x3F) << 6) | (bytes[3] & 0x3F);
+        // Overlong check: must be >= 0x10000 and <= 0x10FFFF
+        if (cp < 0x10000 or cp > 0x10FFFF) {
+            return .{ .codepoint = 0xFFFD, .len = 4 };
+        }
+        return .{ .codepoint = cp, .len = 4 };
+    }
+
+    // Invalid lead byte (0xF5-0xFF)
+    return .{ .codepoint = 0xFFFD, .len = 1 };
+}
+
+fn isContinuation(byte: u8) bool {
+    return (byte & 0xC0) == 0x80;
+}
+
 test "isUtf8Locale with LC_ALL=C" {
     // Can't easily test env vars in unit tests, but the logic is straightforward
 }
@@ -160,4 +241,52 @@ test "isCLocaleWhitespace" {
     try std.testing.expect(isCLocaleWhitespace('\t'));
     try std.testing.expect(isCLocaleWhitespace(0xa0)); // Latin-1 NBSP
     try std.testing.expect(!isCLocaleWhitespace('a'));
+}
+
+test "decodeUtf8 - ASCII" {
+    const result = decodeUtf8("hello");
+    try std.testing.expectEqual(@as(u21, 'h'), result.codepoint);
+    try std.testing.expectEqual(@as(usize, 1), result.len);
+}
+
+test "decodeUtf8 - valid 2-byte" {
+    const result = decodeUtf8("\xc2\xa0"); // NO-BREAK SPACE
+    try std.testing.expectEqual(@as(u21, 0x00A0), result.codepoint);
+    try std.testing.expectEqual(@as(usize, 2), result.len);
+}
+
+test "decodeUtf8 - valid 3-byte" {
+    const result = decodeUtf8("\xe2\x80\x83"); // EM SPACE
+    try std.testing.expectEqual(@as(u21, 0x2003), result.codepoint);
+    try std.testing.expectEqual(@as(usize, 3), result.len);
+}
+
+test "decodeUtf8 - valid 4-byte" {
+    const result = decodeUtf8("\xf0\x9f\x98\x80"); // 😀
+    try std.testing.expectEqual(@as(u21, 0x1F600), result.codepoint);
+    try std.testing.expectEqual(@as(usize, 4), result.len);
+}
+
+test "decodeUtf8 - malformed lead byte only" {
+    const result = decodeUtf8("\xc0");
+    try std.testing.expectEqual(@as(u21, 0xFFFD), result.codepoint);
+    try std.testing.expectEqual(@as(usize, 1), result.len);
+}
+
+test "decodeUtf8 - lead byte followed by non-continuation" {
+    const result = decodeUtf8("\xc0 "); // C0 followed by space
+    try std.testing.expectEqual(@as(u21, 0xFFFD), result.codepoint);
+    try std.testing.expectEqual(@as(usize, 1), result.len); // Only consume the C0
+}
+
+test "decodeUtf8 - orphan continuation byte" {
+    const result = decodeUtf8("\x80");
+    try std.testing.expectEqual(@as(u21, 0xFFFD), result.codepoint);
+    try std.testing.expectEqual(@as(usize, 1), result.len);
+}
+
+test "decodeUtf8 - invalid lead byte 0xFF" {
+    const result = decodeUtf8("\xff");
+    try std.testing.expectEqual(@as(u21, 0xFFFD), result.codepoint);
+    try std.testing.expectEqual(@as(usize, 1), result.len);
 }
