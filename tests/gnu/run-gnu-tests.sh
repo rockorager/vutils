@@ -3,8 +3,8 @@
 # Based on uutils' approach: https://github.com/uutils/coreutils
 #
 # Usage:
-#   ./tests/gnu/run-gnu-tests.sh          # Run wc tests only
-#   ./tests/gnu/run-gnu-tests.sh --all    # Run all tests (requires all tools)
+#   ./tests/gnu/run-gnu-tests.sh          # Run all GNU tests
+#   ./tests/gnu/run-gnu-tests.sh --wc     # Run wc tests only
 #   ./tests/gnu/run-gnu-tests.sh --setup  # Just setup, don't run
 
 set -e
@@ -20,11 +20,11 @@ log() { echo -e "\033[0;32m[gnu-test]\033[0m $*"; }
 error() { echo -e "\033[0;31m[error]\033[0m $*" >&2; }
 
 # Parse args
-RUN_ALL=false
+RUN_WC_ONLY=false
 SETUP_ONLY=false
 for arg in "$@"; do
     case "$arg" in
-        --all) RUN_ALL=true ;;
+        --wc) RUN_WC_ONLY=true ;;
         --setup) SETUP_ONLY=true ;;
     esac
 done
@@ -119,12 +119,10 @@ run_tests() {
     
     # Determine which tests to run
     local tests=""
-    if $RUN_ALL; then
-        tests=""  # Run all
-    else
-        # Just wc tests
+    if $RUN_WC_ONLY; then
         tests="TESTS='tests/misc/wc.pl tests/misc/wc-files0-from.pl tests/misc/wc-parallel.sh'"
     fi
+    # Default: run all tests
     
     log "Running GNU tests..."
     
