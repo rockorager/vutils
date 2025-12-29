@@ -3,6 +3,7 @@
 
 const std = @import("std");
 const wc = @import("wc.zig");
+const echo = @import("echo.zig");
 
 const Tool = struct {
     name: []const u8,
@@ -12,6 +13,8 @@ const Tool = struct {
 const tools = [_]Tool{
     .{ .name = "wc", .run = wc.run },
     .{ .name = "vwc", .run = wc.run },
+    .{ .name = "echo", .run = echo.run },
+    .{ .name = "vecho", .run = echo.run },
 };
 
 pub fn main() !void {
@@ -67,6 +70,7 @@ fn printUsage() void {
         \\
         \\tools:
         \\  wc    word, line, byte count
+        \\  echo  display a line of text
         \\
     , .{});
 }
