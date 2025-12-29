@@ -30,7 +30,7 @@ jobs:
         if: matrix.platform == 'darwin'
         run: |
           brew install coreutils
-          brew install --force uutils-coreutils || true
+          brew install --quiet uutils-coreutils 2>/dev/null || true
 
       - name: Install dependencies (Linux)
         if: matrix.platform == 'linux'

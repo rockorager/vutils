@@ -67,6 +67,7 @@ fn main(allocator: std.mem.Allocator) !u8 {
 
     // Output arguments
     var first = true;
+    var suppress_newline = opts.no_newline;
     for (args[arg_start..]) |arg| {
         if (!first) {
             stdout.print(" ", .{}) catch {};
@@ -74,13 +75,16 @@ fn main(allocator: std.mem.Allocator) !u8 {
         first = false;
 
         if (opts.interpret_escapes) {
-            writeEscaped(stdout, arg) catch {};
+            if (writeEscaped(stdout, arg) catch false) {
+                suppress_newline = true;
+                break;
+            }
         } else {
             stdout.print("{s}", .{arg}) catch {};
         }
     }
 
-    if (!opts.no_newline) {
+    if (!suppress_newline) {
         stdout.print("\n", .{}) catch {};
     }
 
@@ -88,7 +92,7 @@ fn main(allocator: std.mem.Allocator) !u8 {
     return 0;
 }
 
-fn writeEscaped(writer: *std.Io.Writer, s: []const u8) !void {
+fn writeEscaped(writer: *std.Io.Writer, s: []const u8) !bool {
     var i: usize = 0;
     while (i < s.len) {
         if (s[i] == '\\' and i + 1 < s.len) {
@@ -107,7 +111,7 @@ fn writeEscaped(writer: *std.Io.Writer, s: []const u8) !void {
                 },
                 'c' => {
                     // \c stops output (no further output including newline)
-                    return;
+                    return true;
                 },
                 'e', 'E' => {
                     try writer.print("\x1b", .{});
@@ -181,4 +185,5 @@ fn writeEscaped(writer: *std.Io.Writer, s: []const u8) !void {
             i += 1;
         }
     }
+    return false;
 }

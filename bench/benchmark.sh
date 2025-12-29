@@ -34,6 +34,7 @@ TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 # Tool paths
 WC_VUTILS="$REPO_ROOT/zig-out/bin/vwc"
+ECHO_VUTILS="$REPO_ROOT/zig-out/bin/vecho"
 
 # BSD wc: only on macOS/FreeBSD (Linux uses GNU wc)
 if [ "$PLATFORM" = "darwin" ] && [ -x "/usr/bin/wc" ]; then
@@ -63,6 +64,24 @@ else
     WC_UUTILS=""
 fi
 WC_BUSYBOX="busybox" # busybox (Linux only)
+
+# BSD echo: /bin/echo on macOS/FreeBSD
+if [ "$PLATFORM" = "darwin" ] && [ -x "/bin/echo" ]; then
+    ECHO_BSD="/bin/echo"
+elif [ "$PLATFORM" = "freebsd" ] && [ -x "/bin/echo" ]; then
+    ECHO_BSD="/bin/echo"
+else
+    ECHO_BSD=""
+fi
+
+# GNU echo: gecho on macOS (via Homebrew), echo on Linux
+if command -v gecho &>/dev/null; then
+    ECHO_GNU="$(command -v gecho)"
+elif [ "$PLATFORM" = "linux" ] && [ -x "/bin/echo" ]; then
+    ECHO_GNU="/bin/echo"
+else
+    ECHO_GNU=""
+fi
 
 # Colors
 RED='\033[0;31m'
@@ -218,6 +237,160 @@ benchmark_wc() {
   }
 }
 EOF
+}
+
+# Benchmark echo implementations
+benchmark_echo() {
+    log "Benchmarking echo..."
+    
+    # Echo benchmark: many iterations of typical echo usage
+    local iterations=10000
+    
+    # Warmup
+    log "Warmup ($WARMUP_RUNS runs)..."
+    for i in $(seq 1 $WARMUP_RUNS); do
+        for j in $(seq 1 100); do
+            "$ECHO_VUTILS" "hello world" >/dev/null 2>&1 || true
+        done
+    done
+    
+    # Benchmark vutils - simple output
+    log "Timing vutils echo - simple ($BENCH_RUNS runs × $iterations iterations)..."
+    local vutils_simple_ms=$(time_cmd "for i in \$(seq 1 $iterations); do \"$ECHO_VUTILS\" 'hello world' >/dev/null; done" $BENCH_RUNS)
+    
+    # Benchmark vutils - escape sequences
+    log "Timing vutils echo - escapes ($BENCH_RUNS runs × $iterations iterations)..."
+    local vutils_escape_ms=$(time_cmd "for i in \$(seq 1 $iterations); do \"$ECHO_VUTILS\" -e 'hello\tworld\n' >/dev/null; done" $BENCH_RUNS)
+    
+    # Benchmark vutils - multiple args
+    log "Timing vutils echo - multi-arg ($BENCH_RUNS runs × $iterations iterations)..."
+    local vutils_multi_ms=$(time_cmd "for i in \$(seq 1 $iterations); do \"$ECHO_VUTILS\" arg1 arg2 arg3 arg4 arg5 >/dev/null; done" $BENCH_RUNS)
+    
+    # Benchmark BSD echo
+    local bsd_simple_ms="null"
+    local bsd_multi_ms="null"
+    if [ -n "$ECHO_BSD" ] && [ -x "$ECHO_BSD" ]; then
+        log "Timing BSD echo - simple ($BENCH_RUNS runs × $iterations iterations)..."
+        bsd_simple_ms=$(time_cmd "for i in \$(seq 1 $iterations); do \"$ECHO_BSD\" 'hello world' >/dev/null; done" $BENCH_RUNS)
+        log "Timing BSD echo - multi-arg ($BENCH_RUNS runs × $iterations iterations)..."
+        bsd_multi_ms=$(time_cmd "for i in \$(seq 1 $iterations); do \"$ECHO_BSD\" arg1 arg2 arg3 arg4 arg5 >/dev/null; done" $BENCH_RUNS)
+    fi
+    
+    # Benchmark GNU echo
+    local gnu_simple_ms="null"
+    local gnu_escape_ms="null"
+    local gnu_multi_ms="null"
+    if [ -n "$ECHO_GNU" ] && [ -x "$ECHO_GNU" ]; then
+        log "Timing GNU echo - simple ($BENCH_RUNS runs × $iterations iterations)..."
+        gnu_simple_ms=$(time_cmd "for i in \$(seq 1 $iterations); do \"$ECHO_GNU\" 'hello world' >/dev/null; done" $BENCH_RUNS)
+        log "Timing GNU echo - escapes ($BENCH_RUNS runs × $iterations iterations)..."
+        gnu_escape_ms=$(time_cmd "for i in \$(seq 1 $iterations); do \"$ECHO_GNU\" -e 'hello\tworld\n' >/dev/null; done" $BENCH_RUNS)
+        log "Timing GNU echo - multi-arg ($BENCH_RUNS runs × $iterations iterations)..."
+        gnu_multi_ms=$(time_cmd "for i in \$(seq 1 $iterations); do \"$ECHO_GNU\" arg1 arg2 arg3 arg4 arg5 >/dev/null; done" $BENCH_RUNS)
+    fi
+    
+    # Benchmark busybox echo
+    local busybox_simple_ms="null"
+    local busybox_escape_ms="null"
+    if command -v busybox &>/dev/null; then
+        log "Timing busybox echo - simple ($BENCH_RUNS runs × $iterations iterations)..."
+        busybox_simple_ms=$(time_cmd "for i in \$(seq 1 $iterations); do busybox echo 'hello world' >/dev/null; done" $BENCH_RUNS)
+        log "Timing busybox echo - escapes ($BENCH_RUNS runs × $iterations iterations)..."
+        busybox_escape_ms=$(time_cmd "for i in \$(seq 1 $iterations); do busybox echo -e 'hello\tworld\n' >/dev/null; done" $BENCH_RUNS)
+    fi
+    
+    # Calculate speedups (simple case)
+    local speedup_vs_bsd="null"
+    local speedup_vs_gnu="null"
+    local speedup_vs_busybox="null"
+    if [ "$bsd_simple_ms" != "null" ] && [ "$vutils_simple_ms" -gt 0 ]; then
+        speedup_vs_bsd=$(echo "scale=2; $bsd_simple_ms / $vutils_simple_ms" | bc)
+    fi
+    if [ "$gnu_simple_ms" != "null" ] && [ "$vutils_simple_ms" -gt 0 ]; then
+        speedup_vs_gnu=$(echo "scale=2; $gnu_simple_ms / $vutils_simple_ms" | bc)
+    fi
+    if [ "$busybox_simple_ms" != "null" ] && [ "$vutils_simple_ms" -gt 0 ]; then
+        speedup_vs_busybox=$(echo "scale=2; $busybox_simple_ms / $vutils_simple_ms" | bc)
+    fi
+    
+    # Output JSON to stdout
+    cat <<EOF
+{
+  "binary": "echo",
+  "platform": "$PLATFORM",
+  "arch": "$ARCH",
+  "timestamp": "$TIMESTAMP",
+  "git_commit": "$GIT_COMMIT",
+  "git_branch": "$GIT_BRANCH",
+  "test_config": {
+    "iterations": $iterations,
+    "warmup_runs": $WARMUP_RUNS,
+    "bench_runs": $BENCH_RUNS
+  },
+  "results": {
+    "vutils_simple_ms": $vutils_simple_ms,
+    "vutils_escape_ms": $vutils_escape_ms,
+    "vutils_multi_ms": $vutils_multi_ms,
+    "bsd_simple_ms": $bsd_simple_ms,
+    "bsd_multi_ms": $bsd_multi_ms,
+    "gnu_simple_ms": $gnu_simple_ms,
+    "gnu_escape_ms": $gnu_escape_ms,
+    "gnu_multi_ms": $gnu_multi_ms,
+    "busybox_simple_ms": $busybox_simple_ms,
+    "busybox_escape_ms": $busybox_escape_ms,
+    "speedup_vs_bsd": $speedup_vs_bsd,
+    "speedup_vs_gnu": $speedup_vs_gnu,
+    "speedup_vs_busybox": $speedup_vs_busybox
+  }
+}
+EOF
+}
+
+# Print human-readable summary for echo
+print_echo_summary() {
+    local json="$1"
+    
+    local vutils_simple=$(echo "$json" | jq -r '.results.vutils_simple_ms // 0')
+    local vutils_escape=$(echo "$json" | jq -r '.results.vutils_escape_ms // 0')
+    local vutils_multi=$(echo "$json" | jq -r '.results.vutils_multi_ms // 0')
+    local bsd_simple=$(echo "$json" | jq -r '.results.bsd_simple_ms // "null"')
+    local gnu_simple=$(echo "$json" | jq -r '.results.gnu_simple_ms // "null"')
+    local gnu_escape=$(echo "$json" | jq -r '.results.gnu_escape_ms // "null"')
+    local busybox_simple=$(echo "$json" | jq -r '.results.busybox_simple_ms // "null"')
+    local busybox_escape=$(echo "$json" | jq -r '.results.busybox_escape_ms // "null"')
+    local speedup_bsd=$(echo "$json" | jq -r '.results.speedup_vs_bsd // "null"')
+    local speedup_gnu=$(echo "$json" | jq -r '.results.speedup_vs_gnu // "null"')
+    local speedup_busybox=$(echo "$json" | jq -r '.results.speedup_vs_busybox // "null"')
+    local iterations=$(echo "$json" | jq -r '.test_config.iterations // 0')
+    
+    {
+        echo
+        echo "═══════════════════════════════════════════════════════════"
+        echo " Benchmark Results: echo ($iterations iterations)"
+        echo " Platform: $PLATFORM/$ARCH | Commit: $GIT_COMMIT"
+        echo "═══════════════════════════════════════════════════════════"
+        echo
+        echo " Simple output ('hello world'):"
+        printf "  %-12s %8s ms\n" "vutils:" "$vutils_simple"
+        [ "$bsd_simple" != "null" ] && printf "  %-12s %8s ms  (vutils is %sx faster)\n" "BSD:" "$bsd_simple" "$speedup_bsd"
+        [ "$gnu_simple" != "null" ] && printf "  %-12s %8s ms  (vutils is %sx faster)\n" "GNU:" "$gnu_simple" "$speedup_gnu"
+        [ "$busybox_simple" != "null" ] && printf "  %-12s %8s ms\n" "busybox:" "$busybox_simple"
+        echo
+        echo " Escape sequences (-e 'hello\\tworld\\n'):"
+        printf "  %-12s %8s ms\n" "vutils:" "$vutils_escape"
+        [ "$gnu_escape" != "null" ] && printf "  %-12s %8s ms\n" "GNU:" "$gnu_escape"
+        [ "$busybox_escape" != "null" ] && printf "  %-12s %8s ms\n" "busybox:" "$busybox_escape"
+        echo
+        echo " Multiple args (5 args):"
+        printf "  %-12s %8s ms\n" "vutils:" "$vutils_multi"
+        echo
+        
+        if [ "$vutils_simple" -gt 0 ]; then
+            local calls_per_sec=$(echo "scale=0; $iterations * 1000 / $vutils_simple" | bc)
+            printf "  Throughput: %s calls/sec (simple)\n" "$calls_per_sec"
+        fi
+        echo
+    } >&2
 }
 
 # Print human-readable summary

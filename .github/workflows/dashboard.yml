@@ -68,7 +68,7 @@ jobs:
       - name: Install dependencies
         run: |
           brew install coreutils jq
-          brew install --force uutils-coreutils || true
+          brew install --quiet uutils-coreutils 2>/dev/null || true
           echo "GNU wc (gwc) version:" && gwc --version | head -1
           echo "BSD wc version:" && /usr/bin/wc --version 2>&1 | head -1 || echo "(no version flag)"
 
