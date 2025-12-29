@@ -110,8 +110,9 @@ zig build -Doptimize=ReleaseFast    # Release
 # Tests
 zig build test                      # Unit tests (core counting logic)
 zig build integration               # Integration tests
-./tests/compare_to_gnu.sh           # Compare against GNU wc (preferred)
+./tests/compare_to_gnu.sh           # Compare against GNU wc
 ./tests/compare_to_bsd.sh           # Compare against BSD wc
+./tests/gnu/run-gnu-tests.sh        # Run GNU test suite (requires deps)
 
 # Run with timing
 ./zig-out/bin/wc -t *.txt
