@@ -1,0 +1,9 @@
+# Zig build artifacts
+zig-out/
+.zig-cache/
+
+# Benchmark fixtures (large generated files)
+bench/fixtures/
+
+# OS files
+.DS_Store

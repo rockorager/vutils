@@ -1,0 +1,17 @@
+.{
+    .name = .vutils,
+    .version = "0.1.0",
+    .fingerprint = 0xfe94e38951efbdee,
+    .dependencies = .{
+        .uucode = .{
+            .url = "https://github.com/jacobsandlund/uucode/archive/refs/heads/main.tar.gz",
+            .hash = "uucode-0.1.0-ZZjBPpY_TQDXuXn50MC3sp0xTGaHHIuORvn429TnCao2",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        "tests",
+    },
+}

@@ -1,0 +1,5 @@
+# Generated test fixtures (large files)
+fixtures/
+
+# Keep data directory but allow manual cleanup
+# data/*.jsonl files should be committed for history tracking

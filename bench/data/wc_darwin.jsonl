@@ -1,0 +1,1 @@
+{"binary":"wc","platform":"darwin","arch":"arm64","timestamp":"2025-12-29T18:32:57Z","git_commit":"unknown","git_branch":"unknown","test_config":{"num_files":50,"total_mb":50,"warmup_runs":2,"bench_runs":5},"results":{"vutils_ms":34,"bsd_ms":80,"gnu_ms":121,"speedup_vs_bsd":2.35,"speedup_vs_gnu":3.55}}
