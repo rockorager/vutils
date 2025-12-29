@@ -6,6 +6,7 @@ const count = @import("count");
 const linux = std.os.linux;
 
 pub const Counts = count.Counts;
+pub const CountMode = count.CountMode;
 
 const READ_BUF_SIZE = 128 * 1024;
 const RING_ENTRIES = 256;
@@ -26,6 +27,7 @@ pub const FileResult = struct {
 pub fn countFilesParallel(
     paths: []const []const u8,
     allocator: std.mem.Allocator,
+    mode: CountMode,
 ) ![]FileResult {
     if (paths.len == 0) {
         return try allocator.alloc(FileResult, 0);
@@ -35,7 +37,7 @@ pub fn countFilesParallel(
     @memset(results, .{ .counts = .{}, .err = null });
 
     if (paths.len == 1) {
-        results[0] = countFile(paths[0]);
+        results[0] = countFile(paths[0], mode);
         return results;
     }
 
@@ -45,8 +47,20 @@ pub fn countFilesParallel(
 
     var wg = std.Thread.WaitGroup{};
 
-    for (paths, 0..) |path, i| {
-        pool.spawnWg(&wg, countFileThread, .{ path, &results[i] });
+    const Context = struct {
+        paths: []const []const u8,
+        results: []FileResult,
+        mode: CountMode,
+    };
+
+    var ctx = Context{ .paths = paths, .results = results, .mode = mode };
+
+    for (0..paths.len) |i| {
+        pool.spawnWg(&wg, struct {
+            fn work(c: *Context, idx: usize) void {
+                c.results[idx] = countFile(c.paths[idx], c.mode);
+            }
+        }.work, .{ &ctx, i });
     }
 
     wg.wait();
@@ -54,12 +68,8 @@ pub fn countFilesParallel(
     return results;
 }
 
-fn countFileThread(path: []const u8, result: *FileResult) void {
-    result.* = countFile(path);
-}
-
 /// Count a single file - returns result with optional error
-pub fn countFile(path: []const u8) FileResult {
+pub fn countFile(path: []const u8, mode: CountMode) FileResult {
     const file = std.fs.cwd().openFile(path, .{}) catch |err| {
         const code: std.posix.E = switch (err) {
             error.FileNotFound => .NOENT,
@@ -71,6 +81,14 @@ pub fn countFile(path: []const u8) FileResult {
     };
     defer file.close();
 
+    // Fast path: bytes only - just use fstat
+    if (mode == .bytes_only) {
+        const stat = file.stat() catch {
+            return .{ .counts = .{}, .err = .{ .path = path, .code = .IO } };
+        };
+        return .{ .counts = .{ .bytes = stat.size }, .err = null };
+    }
+
     var buf: [READ_BUF_SIZE]u8 = undefined;
     var total = Counts{};
     var in_word = false;
@@ -81,16 +99,28 @@ pub fn countFile(path: []const u8) FileResult {
         };
         if (n == 0) break;
 
-        const state = count.countBufferLocale(buf[0..n], in_word);
-        total = total.add(state.counts);
-        in_word = state.in_word;
+        switch (mode) {
+            .bytes_only => {
+                total.bytes += n;
+            },
+            .lines_only, .lines_bytes => {
+                const lb = count.countLinesBytes(buf[0..n]);
+                total.lines += lb.lines;
+                total.bytes += lb.bytes;
+            },
+            .full => {
+                const state = count.countBufferLocale(buf[0..n], in_word);
+                total = total.add(state.counts);
+                in_word = state.in_word;
+            },
+        }
     }
 
     return .{ .counts = total, .err = null };
 }
 
 /// Read from stdin
-pub fn countStdin() Counts {
+pub fn countStdin(mode: CountMode) Counts {
     const stdin = std.io.getStdIn();
     var buf: [READ_BUF_SIZE]u8 = undefined;
     var total = Counts{};
@@ -100,9 +130,21 @@ pub fn countStdin() Counts {
         const n = stdin.read(&buf) catch break;
         if (n == 0) break;
 
-        const state = count.countBufferLocale(buf[0..n], in_word);
-        total = total.add(state.counts);
-        in_word = state.in_word;
+        switch (mode) {
+            .bytes_only => {
+                total.bytes += n;
+            },
+            .lines_only, .lines_bytes => {
+                const lb = count.countLinesBytes(buf[0..n]);
+                total.lines += lb.lines;
+                total.bytes += lb.bytes;
+            },
+            .full => {
+                const state = count.countBufferLocale(buf[0..n], in_word);
+                total = total.add(state.counts);
+                in_word = state.in_word;
+            },
+        }
     }
 
     return total;
