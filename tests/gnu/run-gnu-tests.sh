@@ -118,18 +118,22 @@ run_tests() {
     log "PATH includes: $test_bin"
     log "vutils wc: $(which wc)"
     
+    # Ensure test directories exist
+    mkdir -p "$GNU_DIR/tests/misc"
+    
     # Determine which tests to run
     local tests=""
     if $RUN_WC_ONLY; then
-        tests="TESTS='tests/misc/wc.pl tests/misc/wc-files0-from.pl tests/misc/wc-parallel.sh'"
+        # Run wc tests using RUN_EXPENSIVE to enable all tests
+        tests="TESTS='tests/misc/wc.pl tests/misc/wc-files0-from.pl tests/misc/wc-parallel.sh' RUN_EXPENSIVE_TESTS=yes"
     fi
-    # Default: run all tests
     
     log "Running GNU tests..."
     
     # Run tests and capture output
     local results_file="$SCRIPT_DIR/test-results.log"
-    eval make check $tests VERBOSE=yes 2>&1 | tee "$results_file" || true
+    # Use -k to continue on errors, capture exit code but don't fail
+    eval make -k check $tests VERBOSE=yes 2>&1 | tee "$results_file" || true
     
     # Parse results
     parse_results "$results_file"
@@ -140,17 +144,27 @@ parse_results() {
     local log_file="$1"
     local results_json="$SCRIPT_DIR/conformance.json"
     
-    # Count results from automake test output
-    local pass=$(grep -c "^PASS:" "$log_file" 2>/dev/null || echo 0)
-    local fail=$(grep -c "^FAIL:" "$log_file" 2>/dev/null || echo 0)
-    local skip=$(grep -c "^SKIP:" "$log_file" 2>/dev/null || echo 0)
-    local xfail=$(grep -c "^XFAIL:" "$log_file" 2>/dev/null || echo 0)
-    local error=$(grep -c "^ERROR:" "$log_file" 2>/dev/null || echo 0)
+    # Count results from automake test output (handle grep returning 1 on no matches)
+    local pass=0 fail=0 skip=0 xfail=0 err=0
+    if [ -f "$log_file" ]; then
+        pass=$(grep -c "^PASS:" "$log_file" || true)
+        fail=$(grep -c "^FAIL:" "$log_file" || true)
+        skip=$(grep -c "^SKIP:" "$log_file" || true)
+        xfail=$(grep -c "^XFAIL:" "$log_file" || true)
+        err=$(grep -c "^ERROR:" "$log_file" || true)
+    fi
+    # Ensure numeric values
+    pass=${pass:-0}
+    fail=${fail:-0}
+    skip=${skip:-0}
+    xfail=${xfail:-0}
+    err=${err:-0}
     
-    local total=$((pass + fail + skip + xfail + error))
+    local total=$((pass + fail + skip + xfail + err))
     local pct=0
-    if [ $total -gt 0 ]; then
-        pct=$(echo "scale=2; $pass * 100 / ($pass + $fail + $error)" | bc)
+    local denom=$((pass + fail + err))
+    if [ "$denom" -gt 0 ]; then
+        pct=$(echo "scale=2; $pass * 100 / $denom" | bc)
     fi
     
     echo ""
