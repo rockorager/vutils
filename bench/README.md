@@ -82,5 +82,5 @@ cat bench/data/wc_darwin.jsonl | jq -s '
 
 - `jq` - JSON processing (for summary output)
 - `bc` - Calculator (for speedup calculations)
-- `gdate` - GNU date for nanosecond timing (optional, `brew install coreutils`)
 - `gwc` - GNU wc for comparison (optional, `brew install coreutils`)
+- `uwc` - uutils wc for comparison (optional, `brew install uutils-coreutils`)

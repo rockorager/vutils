@@ -36,6 +36,7 @@ TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 WC_VUTILS="$REPO_ROOT/zig-out/bin/wc"
 WC_BSD="/usr/bin/wc"
 WC_GNU="gwc"
+WC_UUTILS="uwc"  # uutils-coreutils (brew install uutils-coreutils)
 
 # Colors
 RED='\033[0;31m'
@@ -125,14 +126,25 @@ benchmark_wc() {
         gnu_ms=$(time_cmd "\"$WC_GNU\" ${files[*]}" $BENCH_RUNS)
     fi
     
+    # Benchmark uutils wc
+    local uutils_ms="null"
+    if command -v "$WC_UUTILS" &>/dev/null; then
+        log "Timing uutils wc ($BENCH_RUNS runs)..."
+        uutils_ms=$(time_cmd "\"$WC_UUTILS\" ${files[*]}" $BENCH_RUNS)
+    fi
+    
     # Calculate speedups
     local speedup_vs_bsd="null"
     local speedup_vs_gnu="null"
+    local speedup_vs_uutils="null"
     if [ "$bsd_ms" != "null" ] && [ "$vutils_ms" -gt 0 ]; then
         speedup_vs_bsd=$(echo "scale=2; $bsd_ms / $vutils_ms" | bc)
     fi
     if [ "$gnu_ms" != "null" ] && [ "$vutils_ms" -gt 0 ]; then
         speedup_vs_gnu=$(echo "scale=2; $gnu_ms / $vutils_ms" | bc)
+    fi
+    if [ "$uutils_ms" != "null" ] && [ "$vutils_ms" -gt 0 ]; then
+        speedup_vs_uutils=$(echo "scale=2; $uutils_ms / $vutils_ms" | bc)
     fi
     
     # Output JSON to stdout
@@ -154,8 +166,10 @@ benchmark_wc() {
     "vutils_ms": $vutils_ms,
     "bsd_ms": $bsd_ms,
     "gnu_ms": $gnu_ms,
+    "uutils_ms": $uutils_ms,
     "speedup_vs_bsd": $speedup_vs_bsd,
-    "speedup_vs_gnu": $speedup_vs_gnu
+    "speedup_vs_gnu": $speedup_vs_gnu,
+    "speedup_vs_uutils": $speedup_vs_uutils
   }
 }
 EOF
@@ -170,8 +184,10 @@ print_summary() {
     local vutils=$(echo "$json" | jq -r '.results.vutils_ms // 0')
     local bsd=$(echo "$json" | jq -r '.results.bsd_ms // "null"')
     local gnu=$(echo "$json" | jq -r '.results.gnu_ms // "null"')
+    local uutils=$(echo "$json" | jq -r '.results.uutils_ms // "null"')
     local speedup_bsd=$(echo "$json" | jq -r '.results.speedup_vs_bsd // "null"')
     local speedup_gnu=$(echo "$json" | jq -r '.results.speedup_vs_gnu // "null"')
+    local speedup_uutils=$(echo "$json" | jq -r '.results.speedup_vs_uutils // "null"')
     local total_mb=$(echo "$json" | jq -r '.test_config.total_mb // 0')
     
     # Print to stderr
@@ -186,6 +202,7 @@ print_summary() {
         printf "  %-12s %8s ms\n" "vutils:" "$vutils"
         [ "$bsd" != "null" ] && printf "  %-12s %8s ms  (vutils is %sx faster)\n" "BSD:" "$bsd" "$speedup_bsd"
         [ "$gnu" != "null" ] && printf "  %-12s %8s ms  (vutils is %sx faster)\n" "GNU:" "$gnu" "$speedup_gnu"
+        [ "$uutils" != "null" ] && printf "  %-12s %8s ms  (vutils is %sx faster)\n" "uutils:" "$uutils" "$speedup_uutils"
         echo
         
         if [ "$vutils" -gt 0 ]; then
