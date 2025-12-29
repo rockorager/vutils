@@ -1,1 +1,27 @@
-[]
+[
+  {
+    "binary": "wc",
+    "platform": "linux",
+    "arch": "x86_64",
+    "timestamp": "2025-12-29T19:18:02Z",
+    "git_commit": "961c4b7",
+    "git_branch": "main",
+    "test_config": {
+      "num_files": 50,
+      "total_mb": 50,
+      "warmup_runs": 2,
+      "bench_runs": 5
+    },
+    "results": {
+      "vutils_ms": 45,
+      "bsd_ms": 256,
+      "gnu_ms": null,
+      "uutils_ms": 159,
+      "busybox_ms": 301,
+      "speedup_vs_bsd": 5.68,
+      "speedup_vs_gnu": null,
+      "speedup_vs_uutils": 3.53,
+      "speedup_vs_busybox": 6.68
+    }
+  }
+]
