@@ -83,4 +83,5 @@ cat bench/data/wc_darwin.jsonl | jq -s '
 - `jq` - JSON processing (for summary output)
 - `bc` - Calculator (for speedup calculations)
 - `gwc` - GNU wc for comparison (optional, `brew install coreutils`)
-- `uwc` - uutils wc for comparison (optional, `brew install uutils-coreutils`)
+- uutils wc - Rust coreutils (`brew install --force uutils-coreutils`)
+- `busybox` - busybox wc for comparison (Linux only)
