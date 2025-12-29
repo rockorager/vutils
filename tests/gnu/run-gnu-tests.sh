@@ -97,52 +97,99 @@ run_tests() {
     rm -rf "$test_bin"
     mkdir -p "$test_bin"
     
-    # Link vutils tools (use vwc as wc)
+    # Link vutils tools
     ln -sf "$VUTILS_BIN/vwc" "$test_bin/wc"
     
-    # Link GNU helpers needed for tests
-    ln -sf "$GNU_DIR/src/getlimits" "$test_bin/"
-    
-    # For tools we don't have, use system/GNU versions
-    for tool in cat echo printf tr seq head tail; do
-        if [ -f "$GNU_DIR/src/$tool" ]; then
-            ln -sf "$GNU_DIR/src/$tool" "$test_bin/"
-        elif command -v "g$tool" &>/dev/null; then
-            ln -sf "$(command -v g$tool)" "$test_bin/$tool"
-        elif command -v "$tool" &>/dev/null; then
-            ln -sf "$(command -v $tool)" "$test_bin/$tool"
+    # Link GNU-built helpers and tools we don't implement yet
+    for tool in $(./build-aux/gen-lists-of-programs.sh --list-progs 2>/dev/null || echo ""); do
+        if [ ! -f "$test_bin/$tool" ]; then
+            if [ -f "$GNU_DIR/src/$tool" ]; then
+                ln -sf "$GNU_DIR/src/$tool" "$test_bin/"
+            fi
         fi
     done
     
+    # Ensure getlimits is available
+    ln -sf "$GNU_DIR/src/getlimits" "$test_bin/" 2>/dev/null || true
+    
     export PATH="$test_bin:$PATH"
     
-    log "Running GNU wc tests..."
     log "PATH includes: $test_bin"
+    log "vutils wc: $(which wc)"
     
-    # Run wc-specific tests
+    # Determine which tests to run
+    local tests=""
     if $RUN_ALL; then
-        make check TESTS="tests/misc/wc.pl tests/misc/wc-files0-from.pl" VERBOSE=yes || true
+        tests=""  # Run all
     else
-        # Just run basic wc tests
-        cd tests/misc
-        
-        log "Test: basic wc functionality"
-        echo "hello world" | wc
-        
-        log "Test: wc -l"
-        printf "line1\nline2\nline3\n" | wc -l
-        
-        log "Test: wc -w" 
-        echo "one two three four" | wc -w
-        
-        log "Test: wc -c"
-        echo "12345" | wc -c
-        
-        log "Running wc.pl test..."
-        cd "$GNU_DIR"
-        perl -I"$GNU_DIR/tests" tests/misc/wc.pl || {
-            error "wc.pl failed (some failures expected)"
-        }
+        # Just wc tests
+        tests="TESTS='tests/misc/wc.pl tests/misc/wc-files0-from.pl tests/misc/wc-parallel.sh'"
+    fi
+    
+    log "Running GNU tests..."
+    
+    # Run tests and capture output
+    local results_file="$SCRIPT_DIR/test-results.log"
+    eval make check $tests VERBOSE=yes 2>&1 | tee "$results_file" || true
+    
+    # Parse results
+    parse_results "$results_file"
+}
+
+# Parse and summarize test results
+parse_results() {
+    local log_file="$1"
+    local results_json="$SCRIPT_DIR/conformance.json"
+    
+    # Count results from automake test output
+    local pass=$(grep -c "^PASS:" "$log_file" 2>/dev/null || echo 0)
+    local fail=$(grep -c "^FAIL:" "$log_file" 2>/dev/null || echo 0)
+    local skip=$(grep -c "^SKIP:" "$log_file" 2>/dev/null || echo 0)
+    local xfail=$(grep -c "^XFAIL:" "$log_file" 2>/dev/null || echo 0)
+    local error=$(grep -c "^ERROR:" "$log_file" 2>/dev/null || echo 0)
+    
+    local total=$((pass + fail + skip + xfail + error))
+    local pct=0
+    if [ $total -gt 0 ]; then
+        pct=$(echo "scale=2; $pass * 100 / ($pass + $fail + $error)" | bc)
+    fi
+    
+    echo ""
+    log "═══════════════════════════════════════════════════════════"
+    log " GNU Test Suite Results"
+    log "═══════════════════════════════════════════════════════════"
+    log ""
+    log "  PASS:  $pass"
+    log "  FAIL:  $fail"
+    log "  SKIP:  $skip"
+    log "  XFAIL: $xfail"
+    log "  ERROR: $error"
+    log ""
+    log "  Conformance: ${pct}%"
+    log ""
+    
+    # Save JSON for tracking
+    cat > "$results_json" <<EOF
+{
+  "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "git_commit": "$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo "unknown")",
+  "pass": $pass,
+  "fail": $fail,
+  "skip": $skip,
+  "xfail": $xfail,
+  "error": $error,
+  "total": $total,
+  "conformance_pct": $pct
+}
+EOF
+    
+    log "Results saved to: $results_json"
+    
+    # List failures for debugging
+    if [ "$fail" -gt 0 ] || [ "$error" -gt 0 ]; then
+        echo ""
+        log "Failed tests:"
+        grep -E "^(FAIL|ERROR):" "$log_file" | head -20
     fi
 }
 

@@ -40,12 +40,28 @@ jobs:
 
       - name: Run GNU wc tests
         run: ./tests/gnu/run-gnu-tests.sh
-        continue-on-error: true  # Report failures but don't block
+        continue-on-error: true
 
-      - name: Upload test results
+      - name: Upload conformance data
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: gnu-test-results
-          path: tests/gnu/coreutils/tests/**/*.log
-          retention-days: 7
+          name: gnu-conformance
+          path: |
+            tests/gnu/conformance.json
+            tests/gnu/test-results.log
+          retention-days: 90
+
+      - name: Report conformance
+        if: always()
+        run: |
+          if [ -f tests/gnu/conformance.json ]; then
+            echo "## GNU Test Suite Conformance" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            cat tests/gnu/conformance.json | jq -r '"| Metric | Value |
+            |--------|-------|
+            | Pass | \(.pass) |
+            | Fail | \(.fail) |
+            | Skip | \(.skip) |
+            | **Conformance** | **\(.conformance_pct)%** |"' >> $GITHUB_STEP_SUMMARY
+          fi

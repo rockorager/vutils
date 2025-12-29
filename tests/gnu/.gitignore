@@ -1,3 +1,5 @@
 # Cloned GNU coreutils (large)
 coreutils/
 test-bin/
+test-results.log
+conformance.json
