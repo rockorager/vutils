@@ -4,6 +4,7 @@
 const std = @import("std");
 const wc = @import("wc.zig");
 const echo = @import("echo.zig");
+const cat = @import("cat.zig");
 
 const Tool = struct {
     name: []const u8,
@@ -15,6 +16,8 @@ const tools = [_]Tool{
     .{ .name = "vwc", .run = wc.run },
     .{ .name = "echo", .run = echo.run },
     .{ .name = "vecho", .run = echo.run },
+    .{ .name = "cat", .run = cat.run },
+    .{ .name = "vcat", .run = cat.run },
 };
 
 pub fn main() !void {
@@ -69,8 +72,9 @@ fn printUsage() void {
         \\       vwc [args...]     (via symlink)
         \\
         \\tools:
-        \\  wc    word, line, byte count
+        \\  cat   concatenate and print files
         \\  echo  display a line of text
+        \\  wc    word, line, byte count
         \\
     , .{});
 }

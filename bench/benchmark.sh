@@ -6,6 +6,7 @@
 #   ./bench/benchmark.sh              # Run all benchmarks
 #   ./bench/benchmark.sh --save       # Run and append to history
 #   ./bench/benchmark.sh wc           # Benchmark only wc
+#   ./bench/benchmark.sh cat          # Benchmark only cat
 #   ./bench/benchmark.sh echo         # Benchmark only echo
 
 set -e
@@ -36,6 +37,7 @@ TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 # Tool paths
 WC_VUTILS="$REPO_ROOT/zig-out/bin/vwc"
 ECHO_VUTILS="$REPO_ROOT/zig-out/bin/vecho"
+CAT_VUTILS="$REPO_ROOT/zig-out/bin/vcat"
 
 # BSD wc: only on macOS/FreeBSD (Linux uses GNU wc)
 if [ "$PLATFORM" = "darwin" ] && [ -x "/usr/bin/wc" ]; then
@@ -84,6 +86,24 @@ elif [ "$PLATFORM" = "linux" ] && [ -x "/bin/echo" ]; then
     ECHO_GNU="/bin/echo"
 else
     ECHO_GNU=""
+fi
+
+# BSD cat: /bin/cat on macOS/FreeBSD
+if [ "$PLATFORM" = "darwin" ] && [ -x "/bin/cat" ]; then
+    CAT_BSD="/bin/cat"
+elif [ "$PLATFORM" = "freebsd" ] && [ -x "/bin/cat" ]; then
+    CAT_BSD="/bin/cat"
+else
+    CAT_BSD=""
+fi
+
+# GNU cat: gcat on macOS (via Homebrew), cat on Linux
+if command -v gcat &>/dev/null; then
+    CAT_GNU="$(command -v gcat)"
+elif [ "$PLATFORM" = "linux" ] && [ -x "/bin/cat" ]; then
+    CAT_GNU="/bin/cat"
+else
+    CAT_GNU=""
 fi
 
 # Colors
@@ -363,6 +383,90 @@ benchmark_echo() {
 EOF
 }
 
+# Benchmark cat implementations
+benchmark_cat() {
+    log "Benchmarking cat..."
+    
+    local files=("$FIXTURE_DIR"/bench_*.txt)
+    local total_bytes=0
+    for f in "${files[@]}"; do
+        total_bytes=$((total_bytes + $(stat -f%z "$f" 2>/dev/null || stat -c%s "$f" 2>/dev/null || echo 0)))
+    done
+    local total_mb=$((total_bytes / 1024 / 1024))
+    
+    # Warmup
+    log "Warmup ($WARMUP_RUNS runs)..."
+    for i in $(seq 1 $WARMUP_RUNS); do
+        "$CAT_VUTILS" "${files[@]}" >/dev/null 2>&1 || true
+    done
+    
+    # Benchmark vutils
+    log "Timing vutils cat ($BENCH_RUNS runs)..."
+    local vutils_ms=$(time_cmd "\"$CAT_VUTILS\" ${files[*]} >/dev/null" $BENCH_RUNS)
+    
+    # Benchmark BSD cat (macOS/FreeBSD only)
+    local bsd_ms="null"
+    if [ -n "$CAT_BSD" ] && [ -x "$CAT_BSD" ]; then
+        log "Timing BSD cat ($BENCH_RUNS runs)..."
+        bsd_ms=$(time_cmd "\"$CAT_BSD\" ${files[*]} >/dev/null" $BENCH_RUNS)
+    fi
+    
+    # Benchmark GNU cat
+    local gnu_ms="null"
+    if [ -n "$CAT_GNU" ] && [ -x "$CAT_GNU" ]; then
+        log "Timing GNU cat ($BENCH_RUNS runs)..."
+        gnu_ms=$(time_cmd "\"$CAT_GNU\" ${files[*]} >/dev/null" $BENCH_RUNS)
+    fi
+    
+    # Benchmark busybox cat
+    local busybox_ms="null"
+    if command -v busybox &>/dev/null; then
+        log "Timing busybox cat ($BENCH_RUNS runs)..."
+        busybox_ms=$(time_cmd "busybox cat ${files[*]} >/dev/null" $BENCH_RUNS)
+    fi
+    
+    # Calculate speedups
+    local speedup_vs_bsd="null"
+    local speedup_vs_gnu="null"
+    local speedup_vs_busybox="null"
+    if [ "$bsd_ms" != "null" ] && [ "$vutils_ms" -gt 0 ]; then
+        speedup_vs_bsd=$(echo "scale=2; $bsd_ms / $vutils_ms" | bc)
+    fi
+    if [ "$gnu_ms" != "null" ] && [ "$vutils_ms" -gt 0 ]; then
+        speedup_vs_gnu=$(echo "scale=2; $gnu_ms / $vutils_ms" | bc)
+    fi
+    if [ "$busybox_ms" != "null" ] && [ "$vutils_ms" -gt 0 ]; then
+        speedup_vs_busybox=$(echo "scale=2; $busybox_ms / $vutils_ms" | bc)
+    fi
+    
+    # Output JSON to stdout
+    cat <<EOF
+{
+  "binary": "cat",
+  "platform": "$PLATFORM",
+  "arch": "$ARCH",
+  "timestamp": "$TIMESTAMP",
+  "git_commit": "$GIT_COMMIT",
+  "git_branch": "$GIT_BRANCH",
+  "test_config": {
+    "num_files": $NUM_FILES,
+    "total_mb": $total_mb,
+    "warmup_runs": $WARMUP_RUNS,
+    "bench_runs": $BENCH_RUNS
+  },
+  "results": {
+    "vutils_ms": $vutils_ms,
+    "bsd_ms": $bsd_ms,
+    "gnu_ms": $gnu_ms,
+    "busybox_ms": $busybox_ms,
+    "speedup_vs_bsd": $speedup_vs_bsd,
+    "speedup_vs_gnu": $speedup_vs_gnu,
+    "speedup_vs_busybox": $speedup_vs_busybox
+  }
+}
+EOF
+}
+
 # Print human-readable summary for echo
 print_echo_summary() {
     local json="$1"
@@ -543,6 +647,7 @@ main() {
         case "$arg" in
             --save) save=true ;;
             wc) what="wc" ;;
+            cat) what="cat" ;;
             echo) what="echo" ;;
             size) what="size" ;;
         esac
@@ -580,6 +685,20 @@ main() {
                 save_result "$result"
             fi
             ;;
+        cat)
+            # Build first
+            log "Building release binary..."
+            (cd "$REPO_ROOT" && zig build -Doptimize=ReleaseSmall) || {
+                error "Build failed"
+                exit 1
+            }
+            generate_fixtures
+            local result=$(benchmark_cat)
+            print_summary "$result"
+            if $save; then
+                save_result "$result"
+            fi
+            ;;
         all)
             # Build first
             log "Building release binary..."
@@ -594,6 +713,13 @@ main() {
             print_summary "$wc_result"
             if $save; then
                 save_result "$wc_result"
+            fi
+            
+            # cat benchmark
+            local cat_result=$(benchmark_cat)
+            print_summary "$cat_result"
+            if $save; then
+                save_result "$cat_result"
             fi
             
             # echo benchmark
