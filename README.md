@@ -2,7 +2,7 @@
 
 Fast, platform-optimized coreutils in Zig.
 
-[![Dashboard](https://img.shields.io/badge/dashboard-live-brightgreen)](https://YOUR_USERNAME.github.io/vutils/)
+[![Dashboard](https://img.shields.io/badge/dashboard-live-brightgreen)](https://rockorager.github.io/vutils/)
 [![GNU Conformance](https://img.shields.io/badge/GNU%20tests-tracking-blue)](#gnu-test-conformance)
 
 ## Features
@@ -43,7 +43,7 @@ Benchmarked on 50 files × 1MB (50MB total):
 | GNU wc | 120ms | 3.6x slower |
 | uutils | 117ms | 3.5x slower |
 
-See the [live dashboard](https://YOUR_USERNAME.github.io/vutils/) for current benchmarks.
+See the [live dashboard](https://rockorager.github.io/vutils/) for current benchmarks.
 
 ## GNU Test Conformance
 
@@ -54,7 +54,7 @@ We track compatibility against the GNU coreutils test suite:
 ./tests/gnu/run-gnu-tests.sh --wc   # Run wc tests only
 ```
 
-Results are published to the [dashboard](https://YOUR_USERNAME.github.io/vutils/).
+Results are published to the [dashboard](https://rockorager.github.io/vutils/).
 
 ## Architecture
 
