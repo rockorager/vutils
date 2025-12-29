@@ -64,12 +64,13 @@ setup_gnu() {
         ./bootstrap --skip-po
 
         log "Configuring..."
-        ./configure --quiet --disable-nls
+        # Use -O0 for fastest build since we discard GNU binaries
+        CFLAGS="-pipe -O0" ./configure --quiet --disable-nls --disable-gcc-warnings
     fi
 
     if [ ! -f "src/getlimits" ]; then
-        log "Building test helpers..."
-        make -j"$(nproc 2>/dev/null || sysctl -n hw.ncpu)" src/getlimits
+        log "Building GNU coreutils (required for test infrastructure)..."
+        make -j"$(nproc 2>/dev/null || sysctl -n hw.ncpu)"
     fi
 
     log "GNU coreutils ready at $GNU_DIR"
@@ -79,7 +80,7 @@ setup_gnu() {
 build_vutils() {
     log "Building vutils..."
     cd "$REPO_ROOT"
-    zig build -Doptimize=ReleaseFast
+    zig build -Doptimize=ReleaseSmall
     
     # Verify wc exists
     if [ ! -x "$VUTILS_BIN/vwc" ]; then
