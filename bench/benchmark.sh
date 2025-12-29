@@ -6,6 +6,7 @@
 #   ./bench/benchmark.sh              # Run all benchmarks
 #   ./bench/benchmark.sh --save       # Run and append to history
 #   ./bench/benchmark.sh wc           # Benchmark only wc
+#   ./bench/benchmark.sh echo         # Benchmark only echo
 
 set -e
 
@@ -53,9 +54,11 @@ elif [ "$PLATFORM" = "linux" ] && [ -x "/usr/bin/wc" ]; then
 else
     WC_GNU=""
 fi
-# uutils: different paths on macOS vs Linux
+# uutils: different paths on macOS (ARM vs Intel) vs Linux
 if [ -x "/opt/homebrew/opt/uutils-coreutils/libexec/uubin/wc" ]; then
     WC_UUTILS="/opt/homebrew/opt/uutils-coreutils/libexec/uubin/wc"
+elif [ -x "/usr/local/opt/uutils-coreutils/libexec/uubin/wc" ]; then
+    WC_UUTILS="/usr/local/opt/uutils-coreutils/libexec/uubin/wc"
 elif command -v uwc &>/dev/null; then
     WC_UUTILS="uwc"
 elif [ -x "/usr/local/bin/uutils" ]; then
@@ -526,6 +529,7 @@ main() {
         case "$arg" in
             --save) save=true ;;
             wc) what="wc" ;;
+            echo) what="echo" ;;
             size) what="size" ;;
         esac
     done
@@ -549,18 +553,40 @@ main() {
                 save_result "$result"
             fi
             ;;
-        all)
-            # Speed benchmark
+        echo)
+            # Build first
             log "Building release binary..."
             (cd "$REPO_ROOT" && zig build -Doptimize=ReleaseSmall) || {
                 error "Build failed"
                 exit 1
             }
-            generate_fixtures
-            local speed_result=$(benchmark_wc)
-            print_summary "$speed_result"
+            local result=$(benchmark_echo)
+            print_echo_summary "$result"
             if $save; then
-                save_result "$speed_result"
+                save_result "$result"
+            fi
+            ;;
+        all)
+            # Build first
+            log "Building release binary..."
+            (cd "$REPO_ROOT" && zig build -Doptimize=ReleaseSmall) || {
+                error "Build failed"
+                exit 1
+            }
+            
+            # wc benchmark
+            generate_fixtures
+            local wc_result=$(benchmark_wc)
+            print_summary "$wc_result"
+            if $save; then
+                save_result "$wc_result"
+            fi
+            
+            # echo benchmark
+            local echo_result=$(benchmark_echo)
+            print_echo_summary "$echo_result"
+            if $save; then
+                save_result "$echo_result"
             fi
             
             # Size benchmark
