@@ -52,8 +52,11 @@ jobs:
         if: matrix.platform == 'darwin'
         run: ./tests/compare_to_bsd.sh
 
-      - name: Compare to GNU
+      - name: Compare to GNU (UTF-8 locale)
         run: ./tests/compare_to_gnu.sh
+
+      - name: Compare to GNU (C locale)
+        run: LC_ALL=C ./tests/compare_to_gnu.sh
 
   gnu-test-suite:
     runs-on: ubuntu-latest
