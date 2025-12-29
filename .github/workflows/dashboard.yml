@@ -54,6 +54,14 @@ jobs:
             echo "json=$(tail -1 bench/data/echo_linux.jsonl)" >> $GITHUB_OUTPUT
           fi
 
+      - name: Run cat benchmark
+        id: bench_cat
+        run: |
+          ./bench/benchmark.sh cat --save
+          if [ -f bench/data/cat_linux.jsonl ]; then
+            echo "json=$(tail -1 bench/data/cat_linux.jsonl)" >> $GITHUB_OUTPUT
+          fi
+
       - name: Upload benchmark artifact
         uses: actions/upload-artifact@v4
         with:
@@ -95,6 +103,14 @@ jobs:
           ./bench/benchmark.sh echo --save
           if [ -f bench/data/echo_darwin.jsonl ]; then
             echo "json=$(tail -1 bench/data/echo_darwin.jsonl)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run cat benchmark
+        id: bench_cat
+        run: |
+          ./bench/benchmark.sh cat --save
+          if [ -f bench/data/cat_darwin.jsonl ]; then
+            echo "json=$(tail -1 bench/data/cat_darwin.jsonl)" >> $GITHUB_OUTPUT
           fi
 
       - name: Upload benchmark artifact
