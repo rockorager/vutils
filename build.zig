@@ -58,14 +58,14 @@ pub fn build(b: *std.Build) void {
         .name = "vutils",
         .root_module = main_module,
     });
-    b.installArtifact(vutils);
+    const install_artifact = b.addInstallArtifact(vutils, .{});
 
     // Create symlinks for multicall (after install)
     const symlink_step = b.step("symlinks", "Create multicall symlinks");
-    const symlinks = [_][]const u8{ "vwc", "wc", "vecho", "echo" };
-    for (symlinks) |name| {
+    const symlinks_list = [_][]const u8{ "vwc", "wc", "vecho", "echo" };
+    for (symlinks_list) |name| {
         const ln_cmd = b.addSystemCommand(&.{ "ln", "-sf", "vutils", b.fmt("zig-out/bin/{s}", .{name}) });
-        ln_cmd.step.dependOn(&vutils.step);
+        ln_cmd.step.dependOn(&install_artifact.step);
         symlink_step.dependOn(&ln_cmd.step);
     }
     b.getInstallStep().dependOn(symlink_step);
