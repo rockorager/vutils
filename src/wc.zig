@@ -48,13 +48,15 @@ pub fn run() !void {
     var timer = if (time_it) try std.time.Timer.start() else null;
 
     const counts = if (paths.items.len == 0)
-        platform.countStdin()
+        try platform.countStdin()
     else
         try platform.countFilesParallel(paths.items, allocator);
 
     const elapsed = if (timer) |*t| t.read() else null;
 
-    const stdout = std.fs.File.stdout().deprecatedWriter();
+    var buf: [4096]u8 = undefined;
+    var file_writer = std.fs.File.stdout().writer(&buf);
+    const stdout = &file_writer.interface;
 
     if (show_lines) try stdout.print("{d:>8} ", .{counts.lines});
     if (show_words) try stdout.print("{d:>8} ", .{counts.words});
@@ -67,4 +69,6 @@ pub fn run() !void {
             paths.items.len,
         });
     }
+
+    try stdout.flush();
 }

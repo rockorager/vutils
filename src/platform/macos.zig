@@ -90,6 +90,6 @@ fn countFd(fd: c_int) Counts {
 }
 
 /// Read from stdin
-pub fn countStdin() Counts {
+pub fn countStdin() !Counts {
     return countFd(0);
 }
