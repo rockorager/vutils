@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>vutils - Performance Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0d1117;
+            color: #c9d1d9;
+            padding: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 { color: #58a6ff; margin-bottom: 0.5rem; }
+        h2 { color: #8b949e; margin: 2rem 0 1rem; font-size: 1.2rem; }
+        .subtitle { color: #8b949e; margin-bottom: 2rem; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; }
+        .card {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 1.5rem;
+        }
+        .card h3 { color: #58a6ff; margin-bottom: 1rem; font-size: 1rem; }
+        .stat { font-size: 2.5rem; font-weight: bold; color: #7ee787; }
+        .stat.warn { color: #f0883e; }
+        .stat-label { color: #8b949e; font-size: 0.875rem; }
+        .chart-container { position: relative; height: 300px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+        th, td { text-align: left; padding: 0.75rem; border-bottom: 1px solid #30363d; }
+        th { color: #8b949e; font-weight: 500; }
+        .mono { font-family: monospace; }
+        a { color: #58a6ff; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .updated { color: #8b949e; font-size: 0.8rem; margin-top: 2rem; }
+    </style>
+</head>
+<body>
+    <h1>vutils</h1>
+    <p class="subtitle">Fast, platform-optimized coreutils in Zig</p>
+
+    <div class="grid">
+        <div class="card">
+            <h3>GNU Test Conformance</h3>
+            <div class="stat" id="conformance">--%</div>
+            <div class="stat-label">of GNU coreutils tests passing</div>
+        </div>
+        <div class="card">
+            <h3>Speed vs GNU wc</h3>
+            <div class="stat" id="speedup">--x</div>
+            <div class="stat-label">faster than GNU wc</div>
+        </div>
+        <div class="card">
+            <h3>Binary Size</h3>
+            <div class="stat" id="size">-- KB</div>
+            <div class="stat-label">ReleaseSmall multicall binary</div>
+        </div>
+    </div>
+
+    <h2>Conformance Over Time</h2>
+    <div class="card">
+        <div class="chart-container">
+            <canvas id="conformanceChart"></canvas>
+        </div>
+    </div>
+
+    <h2>Performance Over Time</h2>
+    <div class="card">
+        <div class="chart-container">
+            <canvas id="perfChart"></canvas>
+        </div>
+    </div>
+
+    <h2>Latest Benchmark Results</h2>
+    <div class="card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Tool</th>
+                    <th>Time (ms)</th>
+                    <th>Speedup</th>
+                </tr>
+            </thead>
+            <tbody id="benchTable">
+                <tr><td colspan="3">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <p class="updated" id="updated"></p>
+
+    <script>
+        const chartOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: { grid: { color: '#30363d' }, ticks: { color: '#8b949e' } },
+                y: { grid: { color: '#30363d' }, ticks: { color: '#8b949e' } }
+            },
+            plugins: { legend: { labels: { color: '#c9d1d9' } } }
+        };
+
+        async function loadData() {
+            try {
+                // Load conformance data
+                const confRes = await fetch('data/conformance.json');
+                const confData = await confRes.json();
+                
+                if (confData.length > 0) {
+                    const latest = confData[confData.length - 1];
+                    document.getElementById('conformance').textContent = latest.conformance_pct + '%';
+                    
+                    // Conformance chart
+                    new Chart(document.getElementById('conformanceChart'), {
+                        type: 'line',
+                        data: {
+                            labels: confData.map(d => d.git_commit || d.timestamp?.slice(0, 10)),
+                            datasets: [{
+                                label: 'Conformance %',
+                                data: confData.map(d => d.conformance_pct),
+                                borderColor: '#7ee787',
+                                backgroundColor: 'rgba(126, 231, 135, 0.1)',
+                                fill: true,
+                                tension: 0.3
+                            }]
+                        },
+                        options: { ...chartOptions, scales: { ...chartOptions.scales, y: { ...chartOptions.scales.y, min: 0, max: 100 } } }
+                    });
+                }
+            } catch (e) {
+                console.log('No conformance data yet');
+            }
+
+            try {
+                // Load benchmark data
+                const benchRes = await fetch('data/benchmarks.json');
+                const benchData = await benchRes.json();
+                
+                if (benchData.length > 0) {
+                    const latest = benchData[benchData.length - 1];
+                    const r = latest.results;
+                    
+                    document.getElementById('speedup').textContent = (r.speedup_vs_gnu || '--') + 'x';
+                    document.getElementById('size').textContent = Math.round((latest.size_bytes || 127560) / 1024) + ' KB';
+                    
+                    // Benchmark table
+                    const table = document.getElementById('benchTable');
+                    table.innerHTML = `
+                        <tr><td>vutils</td><td class="mono">${r.vutils_ms}</td><td>baseline</td></tr>
+                        ${r.bsd_ms ? `<tr><td>BSD wc</td><td class="mono">${r.bsd_ms}</td><td>${r.speedup_vs_bsd}x slower</td></tr>` : ''}
+                        ${r.gnu_ms ? `<tr><td>GNU wc</td><td class="mono">${r.gnu_ms}</td><td>${r.speedup_vs_gnu}x slower</td></tr>` : ''}
+                        ${r.uutils_ms ? `<tr><td>uutils wc</td><td class="mono">${r.uutils_ms}</td><td>${r.speedup_vs_uutils}x slower</td></tr>` : ''}
+                    `;
+                    
+                    // Performance chart
+                    new Chart(document.getElementById('perfChart'), {
+                        type: 'line',
+                        data: {
+                            labels: benchData.map(d => d.git_commit || d.timestamp?.slice(0, 10)),
+                            datasets: [
+                                {
+                                    label: 'vutils (ms)',
+                                    data: benchData.map(d => d.results?.vutils_ms),
+                                    borderColor: '#7ee787',
+                                    tension: 0.3
+                                },
+                                {
+                                    label: 'GNU wc (ms)',
+                                    data: benchData.map(d => d.results?.gnu_ms),
+                                    borderColor: '#f0883e',
+                                    tension: 0.3
+                                }
+                            ]
+                        },
+                        options: chartOptions
+                    });
+                    
+                    document.getElementById('updated').textContent = 'Last updated: ' + (latest.timestamp || 'unknown');
+                }
+            } catch (e) {
+                console.log('No benchmark data yet');
+            }
+        }
+
+        loadData();
+    </script>
+</body>
+</html>

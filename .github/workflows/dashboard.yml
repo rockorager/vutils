@@ -1,0 +1,153 @@
+name: Update Dashboard
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Only allow one run at a time to avoid race conditions on data files
+concurrency:
+  group: dashboard
+  cancel-in-progress: false
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    outputs:
+      benchmark_json: ${{ steps.bench.outputs.json }}
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.14.0
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq busybox
+          # Install uutils from pre-built binary
+          curl -sL https://github.com/uutils/coreutils/releases/download/0.5.0/coreutils-0.5.0-x86_64-unknown-linux-gnu.tar.gz | tar xz
+          sudo mv coreutils-0.5.0-x86_64-unknown-linux-gnu/coreutils /usr/local/bin/uutils
+
+      - name: Run benchmark
+        id: bench
+        run: |
+          ./bench/benchmark.sh wc --save
+          # Output JSON for next job
+          if [ -f bench/data/wc_linux.jsonl ]; then
+            echo "json=$(tail -1 bench/data/wc_linux.jsonl)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload benchmark artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-data
+          path: bench/data/*.jsonl
+
+  gnu-tests:
+    runs-on: ubuntu-latest
+    outputs:
+      conformance_json: ${{ steps.test.outputs.json }}
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.14.0
+
+      - name: Install GNU coreutils build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            autoconf automake autopoint bison gettext gperf \
+            texinfo perl wget rsync
+
+      - name: Cache GNU coreutils
+        uses: actions/cache@v4
+        with:
+          path: tests/gnu/coreutils
+          key: gnu-coreutils-v9.5-${{ runner.os }}-v2
+
+      - name: Run GNU tests
+        id: test
+        run: |
+          ./tests/gnu/run-gnu-tests.sh --wc || true
+          if [ -f tests/gnu/conformance.json ]; then
+            echo "json=$(cat tests/gnu/conformance.json | jq -c .)" >> $GITHUB_OUTPUT
+          fi
+        continue-on-error: true
+
+      - name: Upload conformance artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: conformance-data
+          path: tests/gnu/conformance.json
+
+  update-dashboard:
+    needs: [benchmark, gnu-tests]
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update benchmark data
+        if: needs.benchmark.outputs.benchmark_json
+        run: |
+          # Append new benchmark to history
+          echo '${{ needs.benchmark.outputs.benchmark_json }}' | jq -c . >> /tmp/new_bench.json
+          
+          # Merge with existing data (keep last 100 entries)
+          jq -s 'add | .[-100:]' docs/data/benchmarks.json /tmp/new_bench.json > /tmp/merged.json
+          mv /tmp/merged.json docs/data/benchmarks.json
+
+      - name: Update conformance data
+        if: needs.gnu-tests.outputs.conformance_json
+        run: |
+          # Append new conformance to history
+          echo '${{ needs.gnu-tests.outputs.conformance_json }}' | jq -c . >> /tmp/new_conf.json
+          
+          # Merge with existing data (keep last 100 entries)
+          jq -s 'add | .[-100:]' docs/data/conformance.json /tmp/new_conf.json > /tmp/merged.json
+          mv /tmp/merged.json docs/data/conformance.json
+
+      - name: Commit updated data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/data/*.json
+          git diff --staged --quiet || git commit -m "docs: update dashboard data [skip ci]"
+          git push
+
+  deploy:
+    needs: update-dashboard
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main  # Get the updated data
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
