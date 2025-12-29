@@ -104,7 +104,7 @@ pub const CountState = struct {
     in_word: bool,
 };
 
-/// Count with word boundary state for streaming (ASCII fast path)
+/// Count with word boundary state for streaming (C locale - ASCII + Latin-1 NBSP)
 pub fn countBufferWithState(buf: []const u8, in_word_start: bool) CountState {
     var counts = Counts{ .bytes = buf.len };
     var in_word = in_word_start;
@@ -112,9 +112,10 @@ pub fn countBufferWithState(buf: []const u8, in_word_start: bool) CountState {
     for (buf) |byte| {
         if (byte == '\n') counts.lines += 1;
 
-        // ASCII whitespace only - fast path
+        // C locale whitespace: ASCII whitespace + 0xA0 (Latin-1 NBSP)
+        // GNU wc treats 0xA0 as whitespace in C locale via libc iswspace()
         const is_space = switch (byte) {
-            ' ', '\t', '\n', '\r', 0x0b, 0x0c => true,
+            ' ', '\t', '\n', '\r', 0x0b, 0x0c, 0xa0 => true,
             else => false,
         };
 
