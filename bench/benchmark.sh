@@ -36,8 +36,16 @@ TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 WC_VUTILS="$REPO_ROOT/zig-out/bin/vwc"
 WC_BSD="/usr/bin/wc"
 WC_GNU="gwc"
-# uutils: use full path to avoid conflicts with coreutils
-WC_UUTILS="/opt/homebrew/opt/uutils-coreutils/libexec/uubin/wc"
+# uutils: different paths on macOS vs Linux
+if [ -x "/opt/homebrew/opt/uutils-coreutils/libexec/uubin/wc" ]; then
+    WC_UUTILS="/opt/homebrew/opt/uutils-coreutils/libexec/uubin/wc"
+elif command -v uwc &>/dev/null; then
+    WC_UUTILS="uwc"
+elif [ -x "/usr/local/bin/uutils" ]; then
+    WC_UUTILS="/usr/local/bin/uutils wc"
+else
+    WC_UUTILS=""
+fi
 WC_BUSYBOX="busybox" # busybox (Linux only)
 
 # Colors
@@ -130,9 +138,9 @@ benchmark_wc() {
     
     # Benchmark uutils wc
     local uutils_ms="null"
-    if [ -x "$WC_UUTILS" ]; then
+    if [ -n "$WC_UUTILS" ]; then
         log "Timing uutils wc ($BENCH_RUNS runs)..."
-        uutils_ms=$(time_cmd "\"$WC_UUTILS\" ${files[*]}" $BENCH_RUNS)
+        uutils_ms=$(time_cmd "$WC_UUTILS ${files[*]}" $BENCH_RUNS)
     fi
     
     # Benchmark busybox wc
