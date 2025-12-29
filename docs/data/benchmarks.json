@@ -204,5 +204,111 @@
       "speedup_vs_gnu": 1.33,
       "speedup_vs_busybox": null
     }
+  },
+  {
+    "binary": "wc",
+    "platform": "linux",
+    "arch": "x86_64",
+    "timestamp": "2025-12-29T22:30:18Z",
+    "git_commit": "b0c88eb",
+    "git_branch": "main",
+    "test_config": {
+      "num_files": 50,
+      "total_mb": 50,
+      "warmup_runs": 2,
+      "bench_runs": 5
+    },
+    "results": {
+      "vutils_ms": 71,
+      "bsd_ms": null,
+      "gnu_ms": 256,
+      "uutils_ms": 160,
+      "busybox_ms": 301,
+      "speedup_vs_bsd": null,
+      "speedup_vs_gnu": 3.60,
+      "speedup_vs_uutils": 2.25,
+      "speedup_vs_busybox": 4.23
+    }
+  },
+  {
+    "binary": "echo",
+    "platform": "linux",
+    "arch": "x86_64",
+    "timestamp": "2025-12-29T22:30:23Z",
+    "git_commit": "b0c88eb",
+    "git_branch": "main",
+    "test_config": {
+      "iterations": 100,
+      "warmup_runs": 2,
+      "bench_runs": 5
+    },
+    "results": {
+      "vutils_simple_ms": 0.780,
+      "vutils_escape_ms": 0.758,
+      "vutils_multi_ms": 0.804,
+      "bsd_simple_ms": null,
+      "bsd_multi_ms": null,
+      "gnu_simple_ms": 0.960,
+      "gnu_escape_ms": 0.962,
+      "gnu_multi_ms": 0.970,
+      "busybox_simple_ms": 0.884,
+      "busybox_escape_ms": 0.880,
+      "speedup_vs_bsd": null,
+      "speedup_vs_gnu": 1.23,
+      "speedup_vs_busybox": 1.13
+    }
+  },
+  {
+    "binary": "wc",
+    "platform": "darwin",
+    "arch": "arm64",
+    "timestamp": "2025-12-29T22:30:30Z",
+    "git_commit": "b0c88eb",
+    "git_branch": "main",
+    "test_config": {
+      "num_files": 50,
+      "total_mb": 50,
+      "warmup_runs": 2,
+      "bench_runs": 5
+    },
+    "results": {
+      "vutils_ms": 44,
+      "bsd_ms": 205,
+      "gnu_ms": 197,
+      "uutils_ms": null,
+      "busybox_ms": null,
+      "speedup_vs_bsd": 4.65,
+      "speedup_vs_gnu": 4.47,
+      "speedup_vs_uutils": null,
+      "speedup_vs_busybox": null
+    }
+  },
+  {
+    "binary": "echo",
+    "platform": "darwin",
+    "arch": "arm64",
+    "timestamp": "2025-12-29T22:30:40Z",
+    "git_commit": "b0c88eb",
+    "git_branch": "main",
+    "test_config": {
+      "iterations": 100,
+      "warmup_runs": 2,
+      "bench_runs": 5
+    },
+    "results": {
+      "vutils_simple_ms": 3.642,
+      "vutils_escape_ms": 2.720,
+      "vutils_multi_ms": 3.574,
+      "bsd_simple_ms": 4.630,
+      "bsd_multi_ms": 5.848,
+      "gnu_simple_ms": 5.722,
+      "gnu_escape_ms": 5.322,
+      "gnu_multi_ms": 3.532,
+      "busybox_simple_ms": null,
+      "busybox_escape_ms": null,
+      "speedup_vs_bsd": 1.27,
+      "speedup_vs_gnu": 1.57,
+      "speedup_vs_busybox": null
+    }
   }
 ]
