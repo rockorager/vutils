@@ -32,7 +32,7 @@ compare() {
     local files=("$@")
     
     local gnu_out=$($WC_GNU "${files[@]}" 2>/dev/null | tail -1)
-    local vutils_out=$($WC_VUTILS "${files[@]}" 2>/dev/null)
+    local vutils_out=$($WC_VUTILS "${files[@]}" 2>/dev/null | tail -1)
     
     local gnu_nums=$(echo "$gnu_out" | awk '{print $1, $2, $3}')
     local vutils_nums=$(echo "$vutils_out" | awk '{print $1, $2, $3}')

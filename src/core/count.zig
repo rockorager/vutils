@@ -3,17 +3,20 @@
 
 const std = @import("std");
 const locale = @import("locale");
+const uucode = @import("uucode");
 
 pub const Counts = struct {
     lines: u64 = 0,
     words: u64 = 0,
     bytes: u64 = 0,
+    chars: u64 = 0,
 
     pub fn add(self: Counts, other: Counts) Counts {
         return .{
             .lines = self.lines + other.lines,
             .words = self.words + other.words,
             .bytes = self.bytes + other.bytes,
+            .chars = self.chars + other.chars,
         };
     }
 };
@@ -37,17 +40,26 @@ pub const CountState = struct {
     in_word: bool,
 };
 
+/// What counts are needed - allows optimized code paths
+pub const CountMode = enum {
+    bytes_only,
+    lines_only,
+    lines_bytes,
+    full,
+};
+
 /// Count with word boundary state for streaming (C locale - ASCII + Latin-1 NBSP)
 pub fn countBufferWithState(buf: []const u8, in_word_start: bool) CountState {
-    var counts = Counts{ .bytes = buf.len };
+    var counts = Counts{ .bytes = buf.len, .chars = buf.len };
     var in_word = in_word_start;
 
     for (buf) |byte| {
-        if (byte == '\n') counts.lines += 1;
-
-        const is_space = locale.isCLocaleWhitespace(byte);
-
-        if (is_space) {
+        counts.lines += @intFromBool(byte == '\n');
+        const is_ws = switch (byte) {
+            ' ', '\t', '\n', '\r', 0x0b, 0x0c, 0xa0 => true,
+            else => false,
+        };
+        if (is_ws) {
             in_word = false;
         } else if (!in_word) {
             in_word = true;
@@ -59,59 +71,45 @@ pub fn countBufferWithState(buf: []const u8, in_word_start: bool) CountState {
 }
 
 /// Count with full Unicode whitespace support
-/// Handles invalid UTF-8 gracefully (treats invalid bytes as non-whitespace)
+/// Fast path for ASCII, falls back to uucode DFA decoder for multibyte
 pub fn countBufferUnicode(buf: []const u8, in_word_start: bool) CountState {
     var counts = Counts{ .bytes = buf.len };
     var in_word = in_word_start;
-    var i: usize = 0;
+    var iter = uucode.utf8.Iterator{ .bytes = buf, .i = 0 };
 
-    while (i < buf.len) {
-        const byte = buf[i];
+    while (iter.i < buf.len) {
+        const byte = buf[iter.i];
 
-        // Count newlines
-        if (byte == '\n') counts.lines += 1;
-
-        // Try to decode UTF-8
-        const cp_len = std.unicode.utf8ByteSequenceLength(byte) catch {
-            // Invalid start byte - treat as non-whitespace, skip 1 byte
-            if (!in_word) {
+        // ASCII fast path (most common case)
+        if (byte < 0x80) {
+            counts.chars += 1;
+            counts.lines += @intFromBool(byte == '\n');
+            const is_ws = switch (byte) {
+                ' ', '\t', '\n', '\r', 0x0b, 0x0c => true,
+                else => false,
+            };
+            if (is_ws) {
+                in_word = false;
+            } else if (!in_word) {
                 in_word = true;
                 counts.words += 1;
             }
-            i += 1;
-            continue;
-        };
-
-        if (i + cp_len > buf.len) {
-            // Truncated sequence at end of buffer - treat as non-whitespace
-            if (!in_word) {
-                in_word = true;
-                counts.words += 1;
-            }
-            i += 1;
+            iter.i += 1;
             continue;
         }
 
-        const cp = std.unicode.utf8Decode(buf[i..][0..cp_len]) catch {
-            // Invalid UTF-8 sequence - treat as non-whitespace
-            if (!in_word) {
+        // Multibyte: use iterator (already positioned)
+        if (iter.next()) |cp| {
+            counts.chars += 1;
+
+            const is_space = locale.isUnicodeWhitespace(cp);
+            if (is_space) {
+                in_word = false;
+            } else if (!in_word) {
                 in_word = true;
                 counts.words += 1;
             }
-            i += 1;
-            continue;
-        };
-
-        const is_space = locale.isUnicodeWhitespace(cp);
-
-        if (is_space) {
-            in_word = false;
-        } else if (!in_word) {
-            in_word = true;
-            counts.words += 1;
         }
-
-        i += cp_len;
     }
 
     return .{ .counts = counts, .in_word = in_word };

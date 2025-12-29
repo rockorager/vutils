@@ -349,7 +349,7 @@ main() {
         wc)
             # Build first
             log "Building release binary..."
-            (cd "$REPO_ROOT" && zig build -Doptimize=ReleaseFast) || {
+            (cd "$REPO_ROOT" && zig build -Doptimize=ReleaseSmall) || {
                 error "Build failed"
                 exit 1
             }
@@ -363,7 +363,7 @@ main() {
         all)
             # Speed benchmark
             log "Building release binary..."
-            (cd "$REPO_ROOT" && zig build -Doptimize=ReleaseFast) || {
+            (cd "$REPO_ROOT" && zig build -Doptimize=ReleaseSmall) || {
                 error "Build failed"
                 exit 1
             }

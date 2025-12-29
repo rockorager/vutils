@@ -25,23 +25,23 @@ pub fn build(b: *std.Build) void {
         .link_libc = true,
     });
 
-    // Locale module (with uucode for Unicode character classification)
+    // Locale module (uses bitmap for fast whitespace classification)
     const locale_module = b.createModule(.{
         .root_source_file = b.path("src/core/locale.zig"),
         .target = target,
         .optimize = optimize,
     });
-    if (uucode_dep) |dep| {
-        locale_module.addImport("uucode", dep.module("uucode"));
-    }
 
-    // Core module (uses locale)
+    // Core module (uses locale and uucode for UTF-8 decoding)
     const core_module = b.createModule(.{
         .root_source_file = b.path("src/core/count.zig"),
         .target = target,
         .optimize = optimize,
     });
     core_module.addImport("locale", locale_module);
+    if (uucode_dep) |dep| {
+        core_module.addImport("uucode", dep.module("uucode"));
+    }
     platform_module.addImport("count", core_module);
 
     // Main multicall binary (imports wc directly)
@@ -101,4 +101,39 @@ pub fn build(b: *std.Build) void {
         }),
     });
     integration_step.dependOn(&b.addRunArtifact(integration_tests).step);
+
+    // Benchmark: whitespace_table vs uucode
+    const bench_step = b.step("bench", "Run whitespace classification benchmark");
+
+    // Create optimized versions of modules for benchmarking
+    const bench_locale_module = b.createModule(.{
+        .root_source_file = b.path("src/core/locale.zig"),
+        .target = target,
+        .optimize = .ReleaseFast,
+    });
+
+    const bench_core_module = b.createModule(.{
+        .root_source_file = b.path("src/core/count.zig"),
+        .target = target,
+        .optimize = .ReleaseFast,
+    });
+    bench_core_module.addImport("locale", bench_locale_module);
+    if (uucode_dep) |dep| {
+        bench_core_module.addImport("uucode", dep.module("uucode"));
+    }
+
+    const bench_module = b.createModule(.{
+        .root_source_file = b.path("bench/whitespace_bench.zig"),
+        .target = target,
+        .optimize = .ReleaseFast,
+    });
+    bench_module.addImport("count", bench_core_module);
+    bench_module.addImport("locale", bench_locale_module);
+
+    const bench_exe = b.addExecutable(.{
+        .name = "whitespace_bench",
+        .root_module = bench_module,
+    });
+    const run_bench = b.addRunArtifact(bench_exe);
+    bench_step.dependOn(&run_bench.step);
 }

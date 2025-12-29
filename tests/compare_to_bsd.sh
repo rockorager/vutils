@@ -15,9 +15,9 @@ compare() {
     shift
     local files=("$@")
     
-    # Get counts from both
+    # Get counts from both (use tail -1 to get total line for multiple files)
     local bsd_out=$($WC_BSD "${files[@]}" 2>/dev/null | tail -1)
-    local vutils_out=$($WC_VUTILS "${files[@]}" 2>/dev/null)
+    local vutils_out=$($WC_VUTILS "${files[@]}" 2>/dev/null | tail -1)
     
     # Extract just the numbers (ignore filenames and "total")
     local bsd_nums=$(echo "$bsd_out" | awk '{print $1, $2, $3}')

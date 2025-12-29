@@ -10,66 +10,75 @@ pub const Counts = count.Counts;
 const READ_BUF_SIZE = 128 * 1024;
 const RING_ENTRIES = 256;
 
-/// Count multiple files using io_uring for batched I/O
+/// Result for a single file count operation
+pub const FileResult = struct {
+    counts: Counts,
+    err: ?FileError,
+
+    pub const FileError = struct {
+        path: []const u8,
+        code: std.posix.E,
+    };
+};
+
+/// Count multiple files using thread pool
+/// Returns per-file results for individual output
 pub fn countFilesParallel(
     paths: []const []const u8,
     allocator: std.mem.Allocator,
-) !Counts {
-    if (paths.len == 0) return .{};
-    if (paths.len == 1) return try countFile(paths[0], allocator);
+) ![]FileResult {
+    if (paths.len == 0) {
+        return try allocator.alloc(FileResult, 0);
+    }
 
-    // io_uring approach: batch open + read operations
-    // For now, use thread pool - io_uring for file reads is complex
-    // TODO: implement proper io_uring batched reads
-    
-    var ring = try linux.IoUring.init(RING_ENTRIES, 0);
-    defer ring.deinit();
+    const results = try allocator.alloc(FileResult, paths.len);
+    @memset(results, .{ .counts = .{}, .err = null });
 
-    var total = Counts{};
-    
-    // Simple parallel approach using thread pool
+    if (paths.len == 1) {
+        results[0] = countFile(paths[0]);
+        return results;
+    }
+
     var pool: std.Thread.Pool = undefined;
     try pool.init(.{ .allocator = allocator });
     defer pool.deinit();
 
-    const results = try allocator.alloc(Counts, paths.len);
-    defer allocator.free(results);
-    @memset(results, .{});
-
     var wg = std.Thread.WaitGroup{};
-    
+
     for (paths, 0..) |path, i| {
-        pool.spawnWg(&wg, countFileThread, .{ path, &results[i], allocator });
+        pool.spawnWg(&wg, countFileThread, .{ path, &results[i] });
     }
 
     wg.wait();
 
-    for (results) |r| {
-        total = total.add(r);
-    }
-    return total;
+    return results;
 }
 
-fn countFileThread(path: []const u8, result: *Counts, allocator: std.mem.Allocator) void {
-    result.* = countFile(path, allocator) catch .{};
+fn countFileThread(path: []const u8, result: *FileResult) void {
+    result.* = countFile(path);
 }
 
-/// Count a single file
-pub fn countFile(path: []const u8, allocator: std.mem.Allocator) !Counts {
-    _ = allocator;
-    
-    const file = try std.fs.cwd().openFile(path, .{});
+/// Count a single file - returns result with optional error
+pub fn countFile(path: []const u8) FileResult {
+    const file = std.fs.cwd().openFile(path, .{}) catch |err| {
+        const code: std.posix.E = switch (err) {
+            error.FileNotFound => .NOENT,
+            error.AccessDenied => .ACCES,
+            error.IsDir => .ISDIR,
+            else => .IO,
+        };
+        return .{ .counts = .{}, .err = .{ .path = path, .code = code } };
+    };
     defer file.close();
-
-    // Use O_DIRECT for large files to bypass page cache
-    // (would need aligned buffers - skip for now)
 
     var buf: [READ_BUF_SIZE]u8 = undefined;
     var total = Counts{};
     var in_word = false;
 
     while (true) {
-        const n = try file.read(&buf);
+        const n = file.read(&buf) catch {
+            return .{ .counts = total, .err = .{ .path = path, .code = .IO } };
+        };
         if (n == 0) break;
 
         const state = count.countBufferLocale(buf[0..n], in_word);
@@ -77,18 +86,18 @@ pub fn countFile(path: []const u8, allocator: std.mem.Allocator) !Counts {
         in_word = state.in_word;
     }
 
-    return total;
+    return .{ .counts = total, .err = null };
 }
 
 /// Read from stdin
-pub fn countStdin() !Counts {
-    const stdin = std.fs.File.stdin();
+pub fn countStdin() Counts {
+    const stdin = std.io.getStdIn();
     var buf: [READ_BUF_SIZE]u8 = undefined;
     var total = Counts{};
     var in_word = false;
 
     while (true) {
-        const n = try stdin.read(&buf);
+        const n = stdin.read(&buf) catch break;
         if (n == 0) break;
 
         const state = count.countBufferLocale(buf[0..n], in_word);

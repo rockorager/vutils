@@ -39,7 +39,7 @@ jobs:
           sudo apt-get install -y busybox locales
           sudo locale-gen en_US.UTF-8
 
-      - name: Build
+      - name: Build (Debug)
         run: zig build
 
       - name: Unit tests
@@ -47,6 +47,9 @@ jobs:
 
       - name: Integration tests
         run: zig build integration
+
+      - name: Build (ReleaseSmall for comparisons)
+        run: zig build -Doptimize=ReleaseSmall
 
       - name: Compare to BSD (macOS)
         if: matrix.platform == 'darwin'
@@ -57,6 +60,12 @@ jobs:
 
       - name: Compare to GNU (C locale)
         run: LC_ALL=C ./tests/compare_to_gnu.sh
+
+      - name: POSIX conformance tests (UTF-8)
+        run: ./tests/posix/wc_test.sh
+
+      - name: POSIX conformance tests (C locale)
+        run: LC_ALL=C ./tests/posix/wc_test.sh
 
   gnu-test-suite:
     runs-on: ubuntu-latest

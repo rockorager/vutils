@@ -6,7 +6,7 @@ const wc = @import("wc.zig");
 
 const Tool = struct {
     name: []const u8,
-    run: *const fn () anyerror!void,
+    run: *const fn () u8,
 };
 
 const tools = [_]Tool{
@@ -36,7 +36,7 @@ pub fn main() !void {
         }
         const tool_name = args[1];
         if (findTool(tool_name)) |tool| {
-            return tool.run();
+            std.process.exit(tool.run());
         }
         std.debug.print("vutils: unknown tool '{s}'\n", .{tool_name});
         return printUsage();
@@ -44,7 +44,7 @@ pub fn main() !void {
 
     // Multicall: invoked as symlink (e.g., "vwc")
     if (findTool(invoked_as)) |tool| {
-        return tool.run();
+        std.process.exit(tool.run());
     }
 
     std.debug.print("vutils: unknown tool '{s}'\n", .{invoked_as});

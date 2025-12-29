@@ -15,7 +15,7 @@ Fast, platform-optimized coreutils in Zig.
 ## Installation
 
 ```bash
-zig build -Doptimize=ReleaseFast
+zig build -Doptimize=ReleaseSmall
 export PATH="$PWD/zig-out/bin:$PATH"
 
 # Use as:
@@ -70,7 +70,7 @@ src/
 
 ```bash
 zig build                        # Debug build
-zig build -Doptimize=ReleaseFast # Release build
+zig build -Doptimize=ReleaseSmall # Release build
 zig build test                   # Unit tests
 zig build integration            # Integration tests
 

@@ -60,7 +60,7 @@ Inspired by [TigerStyle](https://github.com/tigerbeetle/tigerbeetle/blob/main/do
 ## Build Commands
 
 - Build: `zig build`
-- Build release: `zig build -Doptimize=ReleaseFast`
+- Build release: `zig build -Doptimize=ReleaseSmall`
 - Run unit tests: `zig build test`
 - Run integration tests: `zig build integration`
 - Compare to BSD: `./tests/compare_to_bsd.sh`
