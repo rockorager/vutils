@@ -223,5 +223,55 @@
       "speedup_vs_uutils": 4.24,
       "speedup_vs_busybox": null
     }
+  },
+  {
+    "binary": "wc",
+    "platform": "linux",
+    "arch": "x86_64",
+    "timestamp": "2025-12-29T21:51:19Z",
+    "git_commit": "f4fd60c",
+    "git_branch": "main",
+    "test_config": {
+      "num_files": 50,
+      "total_mb": 50,
+      "warmup_runs": 2,
+      "bench_runs": 5
+    },
+    "results": {
+      "vutils_ms": 72,
+      "bsd_ms": null,
+      "gnu_ms": 257,
+      "uutils_ms": 161,
+      "busybox_ms": 301,
+      "speedup_vs_bsd": null,
+      "speedup_vs_gnu": 3.56,
+      "speedup_vs_uutils": 2.23,
+      "speedup_vs_busybox": 4.18
+    }
+  },
+  {
+    "binary": "wc",
+    "platform": "darwin",
+    "arch": "arm64",
+    "timestamp": "2025-12-29T21:51:21Z",
+    "git_commit": "f4fd60c",
+    "git_branch": "main",
+    "test_config": {
+      "num_files": 50,
+      "total_mb": 50,
+      "warmup_runs": 2,
+      "bench_runs": 5
+    },
+    "results": {
+      "vutils_ms": 36,
+      "bsd_ms": 170,
+      "gnu_ms": 169,
+      "uutils_ms": 168,
+      "busybox_ms": null,
+      "speedup_vs_bsd": 4.72,
+      "speedup_vs_gnu": 4.69,
+      "speedup_vs_uutils": 4.66,
+      "speedup_vs_busybox": null
+    }
   }
 ]
