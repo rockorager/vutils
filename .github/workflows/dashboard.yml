@@ -17,7 +17,8 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     outputs:
-      benchmark_json: ${{ steps.bench.outputs.json }}
+      wc_json: ${{ steps.bench_wc.outputs.json }}
+      echo_json: ${{ steps.bench_echo.outputs.json }}
     
     steps:
       - uses: actions/checkout@v4
@@ -37,13 +38,20 @@ jobs:
           # Verify GNU wc is available (wc on Linux is GNU)
           echo "GNU wc version:" && wc --version | head -1
 
-      - name: Run benchmark
-        id: bench
+      - name: Run wc benchmark
+        id: bench_wc
         run: |
           ./bench/benchmark.sh wc --save
-          # Output JSON for next job
           if [ -f bench/data/wc_linux.jsonl ]; then
             echo "json=$(tail -1 bench/data/wc_linux.jsonl)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run echo benchmark
+        id: bench_echo
+        run: |
+          ./bench/benchmark.sh echo --save
+          if [ -f bench/data/echo_linux.jsonl ]; then
+            echo "json=$(tail -1 bench/data/echo_linux.jsonl)" >> $GITHUB_OUTPUT
           fi
 
       - name: Upload benchmark artifact
@@ -55,7 +63,8 @@ jobs:
   benchmark-macos:
     runs-on: macos-latest
     outputs:
-      benchmark_json: ${{ steps.bench.outputs.json }}
+      wc_json: ${{ steps.bench_wc.outputs.json }}
+      echo_json: ${{ steps.bench_echo.outputs.json }}
     
     steps:
       - uses: actions/checkout@v4
@@ -72,13 +81,20 @@ jobs:
           echo "GNU wc (gwc) version:" && gwc --version | head -1
           echo "BSD wc version:" && /usr/bin/wc --version 2>&1 | head -1 || echo "(no version flag)"
 
-      - name: Run benchmark
-        id: bench
+      - name: Run wc benchmark
+        id: bench_wc
         run: |
           ./bench/benchmark.sh wc --save
-          # Output JSON for next job
           if [ -f bench/data/wc_darwin.jsonl ]; then
             echo "json=$(tail -1 bench/data/wc_darwin.jsonl)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run echo benchmark
+        id: bench_echo
+        run: |
+          ./bench/benchmark.sh echo --save
+          if [ -f bench/data/echo_darwin.jsonl ]; then
+            echo "json=$(tail -1 bench/data/echo_darwin.jsonl)" >> $GITHUB_OUTPUT
           fi
 
       - name: Upload benchmark artifact
@@ -138,20 +154,32 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Update Linux benchmark data
-        if: needs.benchmark-linux.outputs.benchmark_json
+      - name: Update Linux wc benchmark
+        if: needs.benchmark-linux.outputs.wc_json
         run: |
-          echo '${{ needs.benchmark-linux.outputs.benchmark_json }}' | jq -c '[.]' > /tmp/new_bench.json
+          echo '${{ needs.benchmark-linux.outputs.wc_json }}' | jq -c '[.]' > /tmp/new_bench.json
           jq -s 'add | .[-100:]' docs/data/benchmarks.json /tmp/new_bench.json > /tmp/merged.json
           mv /tmp/merged.json docs/data/benchmarks.json
 
-      - name: Update macOS benchmark data
-        if: needs.benchmark-macos.outputs.benchmark_json
+      - name: Update Linux echo benchmark
+        if: needs.benchmark-linux.outputs.echo_json
         run: |
-          # Create separate file for macOS benchmarks or append with platform tag
-          echo '${{ needs.benchmark-macos.outputs.benchmark_json }}' | jq -c '[.]' > /tmp/new_bench_macos.json
-          # Merge macOS results into main benchmarks file
-          jq -s 'add | .[-100:]' docs/data/benchmarks.json /tmp/new_bench_macos.json > /tmp/merged.json
+          echo '${{ needs.benchmark-linux.outputs.echo_json }}' | jq -c '[.]' > /tmp/new_bench.json
+          jq -s 'add | .[-100:]' docs/data/benchmarks.json /tmp/new_bench.json > /tmp/merged.json
+          mv /tmp/merged.json docs/data/benchmarks.json
+
+      - name: Update macOS wc benchmark
+        if: needs.benchmark-macos.outputs.wc_json
+        run: |
+          echo '${{ needs.benchmark-macos.outputs.wc_json }}' | jq -c '[.]' > /tmp/new_bench.json
+          jq -s 'add | .[-100:]' docs/data/benchmarks.json /tmp/new_bench.json > /tmp/merged.json
+          mv /tmp/merged.json docs/data/benchmarks.json
+
+      - name: Update macOS echo benchmark
+        if: needs.benchmark-macos.outputs.echo_json
+        run: |
+          echo '${{ needs.benchmark-macos.outputs.echo_json }}' | jq -c '[.]' > /tmp/new_bench.json
+          jq -s 'add | .[-100:]' docs/data/benchmarks.json /tmp/new_bench.json > /tmp/merged.json
           mv /tmp/merged.json docs/data/benchmarks.json
 
       - name: Update conformance data
