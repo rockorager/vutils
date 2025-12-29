@@ -14,6 +14,8 @@ export PATH="$PWD/zig-out/bin:$PATH"
 
 Multicall binary: invoke as `vutils wc` or directly as `vwc`/`wc` via symlinks.
 
+**Binary size (ReleaseSmall):** ~124 KB (vs busybox ~1MB with all applets)
+
 ## Why We're Faster
 
 Benchmarked against macOS BSD `wc` and GNU `wc` on 50 files × 1.3MB each (66MB total):
