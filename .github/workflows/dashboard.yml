@@ -1,8 +1,10 @@
 name: Update Dashboard
 
 on:
-  push:
+  workflow_run:
+    workflows: ["Test"]
     branches: [main]
+    types: [completed]
   workflow_dispatch:
 
 # Only allow one run at a time to avoid race conditions on data files
@@ -12,6 +14,7 @@ concurrency:
 
 jobs:
   benchmark-linux:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     outputs:
       benchmark_json: ${{ steps.bench.outputs.json }}
@@ -113,11 +116,10 @@ jobs:
       - name: Run GNU tests
         id: test
         run: |
-          ./tests/gnu/run-gnu-tests.sh --wc || true
+          ./tests/gnu/run-gnu-tests.sh --wc
           if [ -f tests/gnu/conformance.json ]; then
             echo "json=$(cat tests/gnu/conformance.json | jq -c .)" >> $GITHUB_OUTPUT
           fi
-        continue-on-error: true
 
       - name: Upload conformance artifact
         uses: actions/upload-artifact@v4
