@@ -18,6 +18,51 @@ pub const Counts = struct {
     }
 };
 
+/// Check if current locale is UTF-8 based on LC_CTYPE/LC_ALL/LANG
+fn isUtf8Locale() bool {
+    // Check LC_ALL first (overrides everything)
+    if (std.posix.getenv("LC_ALL")) |val| {
+        if (val.len > 0) {
+            if (std.mem.eql(u8, val, "C") or std.mem.eql(u8, val, "POSIX")) {
+                return false;
+            }
+            return containsUtf8(val);
+        }
+    }
+
+    // Then LC_CTYPE (specific to character classification)
+    if (std.posix.getenv("LC_CTYPE")) |val| {
+        if (val.len > 0) {
+            if (std.mem.eql(u8, val, "C") or std.mem.eql(u8, val, "POSIX")) {
+                return false;
+            }
+            return containsUtf8(val);
+        }
+    }
+
+    // Fall back to LANG
+    if (std.posix.getenv("LANG")) |val| {
+        if (val.len > 0) {
+            if (std.mem.eql(u8, val, "C") or std.mem.eql(u8, val, "POSIX")) {
+                return false;
+            }
+            return containsUtf8(val);
+        }
+    }
+
+    // Default: C locale (ASCII only)
+    return false;
+}
+
+fn containsUtf8(s: []const u8) bool {
+    // Check for common UTF-8 suffixes: .UTF-8, .utf8, .UTF8, etc.
+    var buf: [256]u8 = undefined;
+    const len = @min(s.len, buf.len);
+    const lower = std.ascii.lowerString(buf[0..len], s[0..len]);
+    return std.mem.indexOf(u8, lower, "utf-8") != null or
+        std.mem.indexOf(u8, lower, "utf8") != null;
+}
+
 /// Check if a Unicode code point is whitespace
 /// Follows Unicode semantics: Zs (Space_Separator) + line/paragraph separators
 fn isUnicodeWhitespace(cp: u21) bool {
@@ -43,6 +88,15 @@ fn isUnicodeWhitespace(cp: u21) bool {
 /// Count lines, words, bytes in a buffer (ASCII fast path)
 pub fn countBuffer(buf: []const u8) Counts {
     return countBufferWithState(buf, false).counts;
+}
+
+/// Count respecting current locale (UTF-8 locale uses Unicode whitespace, otherwise ASCII)
+pub fn countBufferLocale(buf: []const u8, in_word_start: bool) CountState {
+    if (isUtf8Locale()) {
+        return countBufferUnicode(buf, in_word_start);
+    } else {
+        return countBufferWithState(buf, in_word_start);
+    }
 }
 
 pub const CountState = struct {

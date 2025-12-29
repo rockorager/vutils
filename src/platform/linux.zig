@@ -72,7 +72,7 @@ pub fn countFile(path: []const u8, allocator: std.mem.Allocator) !Counts {
         const n = try file.read(&buf);
         if (n == 0) break;
 
-        const state = count.countBufferUnicode(buf[0..n], in_word);
+        const state = count.countBufferLocale(buf[0..n], in_word);
         total = total.add(state.counts);
         in_word = state.in_word;
     }
@@ -91,7 +91,7 @@ pub fn countStdin() !Counts {
         const n = try stdin.read(&buf);
         if (n == 0) break;
 
-        const state = count.countBufferUnicode(buf[0..n], in_word);
+        const state = count.countBufferLocale(buf[0..n], in_word);
         total = total.add(state.counts);
         in_word = state.in_word;
     }

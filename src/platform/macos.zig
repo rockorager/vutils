@@ -80,8 +80,8 @@ fn countFd(fd: c_int) Counts {
         const n = c.read(fd, &buf, buf.len);
         if (n <= 0) break;
 
-        // Use Unicode-aware counting for proper locale support
-        const state = count.countBufferUnicode(buf[0..@intCast(n)], in_word);
+        // Respect locale: UTF-8 locale uses Unicode whitespace, C locale uses ASCII
+        const state = count.countBufferLocale(buf[0..@intCast(n)], in_word);
         total = total.add(state.counts);
         in_word = state.in_word;
     }
