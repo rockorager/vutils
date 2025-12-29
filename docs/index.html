@@ -156,22 +156,40 @@
                         ${r.uutils_ms ? `<tr><td>uutils wc</td><td class="mono">${r.uutils_ms}</td><td>${r.speedup_vs_uutils}x slower</td></tr>` : ''}
                     `;
                     
-                    // Performance chart
+                    // Separate by platform
+                    const linuxData = benchData.filter(d => d.platform === 'linux');
+                    const darwinData = benchData.filter(d => d.platform === 'darwin');
+                    
+                    // Performance chart - show both platforms
                     new Chart(document.getElementById('perfChart'), {
                         type: 'line',
                         data: {
-                            labels: benchData.map(d => d.git_commit || d.timestamp?.slice(0, 10)),
+                            labels: linuxData.map(d => d.git_commit || d.timestamp?.slice(0, 10)),
                             datasets: [
                                 {
-                                    label: 'vutils (ms)',
-                                    data: benchData.map(d => d.results?.vutils_ms),
+                                    label: 'vutils Linux (ms)',
+                                    data: linuxData.map(d => d.results?.vutils_ms),
                                     borderColor: '#7ee787',
                                     tension: 0.3
                                 },
                                 {
-                                    label: 'GNU wc (ms)',
-                                    data: benchData.map(d => d.results?.gnu_ms),
+                                    label: 'GNU wc Linux (ms)',
+                                    data: linuxData.map(d => d.results?.gnu_ms),
                                     borderColor: '#f0883e',
+                                    tension: 0.3
+                                },
+                                {
+                                    label: 'vutils macOS (ms)',
+                                    data: darwinData.map(d => d.results?.vutils_ms),
+                                    borderColor: '#58a6ff',
+                                    borderDash: [5, 5],
+                                    tension: 0.3
+                                },
+                                {
+                                    label: 'BSD wc macOS (ms)',
+                                    data: darwinData.map(d => d.results?.bsd_ms),
+                                    borderColor: '#bc8cff',
+                                    borderDash: [5, 5],
                                     tension: 0.3
                                 }
                             ]

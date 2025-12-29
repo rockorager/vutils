@@ -7,8 +7,7 @@ Fast, platform-optimized coreutils in Zig.
 
 ## Features
 
-- **2-3x faster** than GNU/BSD coreutils
-- **~124 KB** multicall binary (vs busybox ~1MB)
+- **3-6x faster** than GNU/BSD coreutils
 - **Full Unicode** whitespace support (GNU-compatible)
 - **Platform-optimized** I/O (GCD on macOS, io_uring on Linux)
 
@@ -34,16 +33,18 @@ More coming soon. Goal: full GNU coreutils compatibility.
 
 ## Performance
 
-Benchmarked on 50 files × 1MB (50MB total):
+Benchmarked on 50 files × 1MB (50MB total) on macOS (darwin/arm64):
 
 | Tool | Time | vs vutils |
 |------|------|-----------|
-| **vutils** | 33ms | — |
-| BSD wc | 80ms | 2.4x slower |
-| GNU wc | 120ms | 3.6x slower |
-| uutils | 117ms | 3.5x slower |
+| **vutils** | 21ms | — |
+| BSD wc | 77ms | 3.7x slower |
+| GNU wc | 119ms | 5.7x slower |
+| uutils | 115ms | 5.5x slower |
 
-See the [live dashboard](https://rockorager.github.io/vutils/) for current benchmarks.
+Throughput: ~2.4 GB/s on parallel files.
+
+See the [live dashboard](https://rockorager.github.io/vutils/) for current benchmarks on both macOS and Linux.
 
 ## GNU Test Conformance
 

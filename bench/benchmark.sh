@@ -34,8 +34,24 @@ TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 # Tool paths
 WC_VUTILS="$REPO_ROOT/zig-out/bin/vwc"
-WC_BSD="/usr/bin/wc"
-WC_GNU="gwc"
+
+# BSD wc: only on macOS/FreeBSD (Linux uses GNU wc)
+if [ "$PLATFORM" = "darwin" ] && [ -x "/usr/bin/wc" ]; then
+    WC_BSD="/usr/bin/wc"
+elif [ "$PLATFORM" = "freebsd" ] && [ -x "/usr/bin/wc" ]; then
+    WC_BSD="/usr/bin/wc"
+else
+    WC_BSD=""
+fi
+
+# GNU wc: gwc on macOS (via Homebrew), wc on Linux
+if command -v gwc &>/dev/null; then
+    WC_GNU="$(command -v gwc)"  # Full path for -x check
+elif [ "$PLATFORM" = "linux" ] && [ -x "/usr/bin/wc" ]; then
+    WC_GNU="/usr/bin/wc"  # On Linux, /usr/bin/wc IS GNU wc
+else
+    WC_GNU=""
+fi
 # uutils: different paths on macOS vs Linux
 if [ -x "/opt/homebrew/opt/uutils-coreutils/libexec/uubin/wc" ]; then
     WC_UUTILS="/opt/homebrew/opt/uutils-coreutils/libexec/uubin/wc"
@@ -128,16 +144,16 @@ benchmark_wc() {
     log "Timing vutils wc ($BENCH_RUNS runs)..."
     local vutils_ms=$(time_cmd "\"$WC_VUTILS\" ${files[*]}" $BENCH_RUNS)
     
-    # Benchmark BSD wc
+    # Benchmark BSD wc (macOS/FreeBSD only)
     local bsd_ms="null"
-    if [ -x "$WC_BSD" ]; then
+    if [ -n "$WC_BSD" ] && [ -x "$WC_BSD" ]; then
         log "Timing BSD wc ($BENCH_RUNS runs)..."
         bsd_ms=$(time_cmd "\"$WC_BSD\" ${files[*]}" $BENCH_RUNS)
     fi
     
     # Benchmark GNU wc
     local gnu_ms="null"
-    if command -v "$WC_GNU" &>/dev/null; then
+    if [ -n "$WC_GNU" ] && [ -x "$WC_GNU" ]; then
         log "Timing GNU wc ($BENCH_RUNS runs)..."
         gnu_ms=$(time_cmd "\"$WC_GNU\" ${files[*]}" $BENCH_RUNS)
     fi

@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  benchmark:
+  benchmark-linux:
     runs-on: ubuntu-latest
     outputs:
       benchmark_json: ${{ steps.bench.outputs.json }}
@@ -27,10 +27,12 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y jq busybox
+          sudo apt-get install -y jq busybox coreutils bc
           # Install uutils from pre-built binary
           curl -sL https://github.com/uutils/coreutils/releases/download/0.5.0/coreutils-0.5.0-x86_64-unknown-linux-gnu.tar.gz | tar xz
           sudo mv coreutils-0.5.0-x86_64-unknown-linux-gnu/coreutils /usr/local/bin/uutils
+          # Verify GNU wc is available (wc on Linux is GNU)
+          echo "GNU wc version:" && wc --version | head -1
 
       - name: Run benchmark
         id: bench
@@ -44,7 +46,42 @@ jobs:
       - name: Upload benchmark artifact
         uses: actions/upload-artifact@v4
         with:
-          name: benchmark-data
+          name: benchmark-data-linux
+          path: bench/data/*.jsonl
+
+  benchmark-macos:
+    runs-on: macos-latest
+    outputs:
+      benchmark_json: ${{ steps.bench.outputs.json }}
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.2
+
+      - name: Install dependencies
+        run: |
+          brew install coreutils jq
+          brew install --force uutils-coreutils || true
+          echo "GNU wc (gwc) version:" && gwc --version | head -1
+          echo "BSD wc version:" && /usr/bin/wc --version 2>&1 | head -1 || echo "(no version flag)"
+
+      - name: Run benchmark
+        id: bench
+        run: |
+          ./bench/benchmark.sh wc --save
+          # Output JSON for next job
+          if [ -f bench/data/wc_darwin.jsonl ]; then
+            echo "json=$(tail -1 bench/data/wc_darwin.jsonl)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload benchmark artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-data-macos
           path: bench/data/*.jsonl
 
   gnu-tests:
@@ -71,7 +108,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: tests/gnu/coreutils
-          key: gnu-coreutils-v9.5-${{ runner.os }}-v2
+          key: gnu-coreutils-v9.5-${{ runner.os }}-v3
 
       - name: Run GNU tests
         id: test
@@ -89,7 +126,7 @@ jobs:
           path: tests/gnu/conformance.json
 
   update-dashboard:
-    needs: [benchmark, gnu-tests]
+    needs: [benchmark-linux, benchmark-macos, gnu-tests]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -99,23 +136,26 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Update benchmark data
-        if: needs.benchmark.outputs.benchmark_json
+      - name: Update Linux benchmark data
+        if: needs.benchmark-linux.outputs.benchmark_json
         run: |
-          # Append new benchmark to history (wrap in array for jq add)
-          echo '${{ needs.benchmark.outputs.benchmark_json }}' | jq -c '[.]' > /tmp/new_bench.json
-          
-          # Merge with existing data (keep last 100 entries)
+          echo '${{ needs.benchmark-linux.outputs.benchmark_json }}' | jq -c '[.]' > /tmp/new_bench.json
           jq -s 'add | .[-100:]' docs/data/benchmarks.json /tmp/new_bench.json > /tmp/merged.json
+          mv /tmp/merged.json docs/data/benchmarks.json
+
+      - name: Update macOS benchmark data
+        if: needs.benchmark-macos.outputs.benchmark_json
+        run: |
+          # Create separate file for macOS benchmarks or append with platform tag
+          echo '${{ needs.benchmark-macos.outputs.benchmark_json }}' | jq -c '[.]' > /tmp/new_bench_macos.json
+          # Merge macOS results into main benchmarks file
+          jq -s 'add | .[-100:]' docs/data/benchmarks.json /tmp/new_bench_macos.json > /tmp/merged.json
           mv /tmp/merged.json docs/data/benchmarks.json
 
       - name: Update conformance data
         if: needs.gnu-tests.outputs.conformance_json
         run: |
-          # Append new conformance to history (wrap in array for jq add)
           echo '${{ needs.gnu-tests.outputs.conformance_json }}' | jq -c '[.]' > /tmp/new_conf.json
-          
-          # Merge with existing data (keep last 100 entries)
           jq -s 'add | .[-100:]' docs/data/conformance.json /tmp/new_conf.json > /tmp/merged.json
           mv /tmp/merged.json docs/data/conformance.json
 
