@@ -2,7 +2,7 @@
 //! No I/O, no allocations, no syscalls
 
 const std = @import("std");
-const uucode = @import("uucode");
+const locale = @import("locale");
 
 pub const Counts = struct {
     lines: u64 = 0,
@@ -18,73 +18,6 @@ pub const Counts = struct {
     }
 };
 
-/// Check if current locale is UTF-8 based on LC_CTYPE/LC_ALL/LANG
-fn isUtf8Locale() bool {
-    // Check LC_ALL first (overrides everything)
-    if (std.posix.getenv("LC_ALL")) |val| {
-        if (val.len > 0) {
-            if (std.mem.eql(u8, val, "C") or std.mem.eql(u8, val, "POSIX")) {
-                return false;
-            }
-            return containsUtf8(val);
-        }
-    }
-
-    // Then LC_CTYPE (specific to character classification)
-    if (std.posix.getenv("LC_CTYPE")) |val| {
-        if (val.len > 0) {
-            if (std.mem.eql(u8, val, "C") or std.mem.eql(u8, val, "POSIX")) {
-                return false;
-            }
-            return containsUtf8(val);
-        }
-    }
-
-    // Fall back to LANG
-    if (std.posix.getenv("LANG")) |val| {
-        if (val.len > 0) {
-            if (std.mem.eql(u8, val, "C") or std.mem.eql(u8, val, "POSIX")) {
-                return false;
-            }
-            return containsUtf8(val);
-        }
-    }
-
-    // Default: C locale (ASCII only)
-    return false;
-}
-
-fn containsUtf8(s: []const u8) bool {
-    // Check for common UTF-8 suffixes: .UTF-8, .utf8, .UTF8, etc.
-    var buf: [256]u8 = undefined;
-    const len = @min(s.len, buf.len);
-    const lower = std.ascii.lowerString(buf[0..len], s[0..len]);
-    return std.mem.indexOf(u8, lower, "utf-8") != null or
-        std.mem.indexOf(u8, lower, "utf8") != null;
-}
-
-/// Check if a Unicode code point is whitespace
-/// Follows Unicode semantics: Zs (Space_Separator) + line/paragraph separators
-fn isUnicodeWhitespace(cp: u21) bool {
-    // ASCII whitespace (fast path)
-    if (cp <= 0x7F) {
-        return switch (@as(u8, @intCast(cp))) {
-            ' ', '\t', '\n', '\r', 0x0b, 0x0c => true,
-            else => false,
-        };
-    }
-
-    // Unicode whitespace: general_category == separator_space (Zs)
-    // This includes NO-BREAK SPACE, EM SPACE, FIGURE SPACE, etc.
-    const gc = uucode.get(.general_category, cp);
-    if (gc == .separator_space) return true;
-
-    // Line/paragraph separators (Zl, Zp categories)
-    return cp == 0x0085 or // NEL (Next Line) - Cc but treated as line break
-        cp == 0x2028 or // LINE SEPARATOR (Zl)
-        cp == 0x2029; // PARAGRAPH SEPARATOR (Zp)
-}
-
 /// Count lines, words, bytes in a buffer (ASCII fast path)
 pub fn countBuffer(buf: []const u8) Counts {
     return countBufferWithState(buf, false).counts;
@@ -92,7 +25,7 @@ pub fn countBuffer(buf: []const u8) Counts {
 
 /// Count respecting current locale (UTF-8 locale uses Unicode whitespace, otherwise ASCII)
 pub fn countBufferLocale(buf: []const u8, in_word_start: bool) CountState {
-    if (isUtf8Locale()) {
+    if (locale.isUtf8Locale()) {
         return countBufferUnicode(buf, in_word_start);
     } else {
         return countBufferWithState(buf, in_word_start);
@@ -112,12 +45,7 @@ pub fn countBufferWithState(buf: []const u8, in_word_start: bool) CountState {
     for (buf) |byte| {
         if (byte == '\n') counts.lines += 1;
 
-        // C locale whitespace: ASCII whitespace + 0xA0 (Latin-1 NBSP)
-        // GNU wc treats 0xA0 as whitespace in C locale via libc iswspace()
-        const is_space = switch (byte) {
-            ' ', '\t', '\n', '\r', 0x0b, 0x0c, 0xa0 => true,
-            else => false,
-        };
+        const is_space = locale.isCLocaleWhitespace(byte);
 
         if (is_space) {
             in_word = false;
@@ -174,7 +102,7 @@ pub fn countBufferUnicode(buf: []const u8, in_word_start: bool) CountState {
             continue;
         };
 
-        const is_space = isUnicodeWhitespace(cp);
+        const is_space = locale.isUnicodeWhitespace(cp);
 
         if (is_space) {
             in_word = false;
@@ -244,19 +172,4 @@ test "unicode whitespace - ZERO WIDTH SPACE" {
     try std.testing.expectEqual(@as(u64, 1), result.counts.words);
 }
 
-test "check general_category for special spaces" {
-    // NO-BREAK SPACE - should be Zs (separator_space)
-    try std.testing.expectEqual(uucode.types.GeneralCategory.separator_space, uucode.get(.general_category, 0x00A0));
-
-    // FIGURE SPACE - should be Zs
-    try std.testing.expectEqual(uucode.types.GeneralCategory.separator_space, uucode.get(.general_category, 0x2007));
-
-    // NARROW NO-BREAK SPACE - should be Zs
-    try std.testing.expectEqual(uucode.types.GeneralCategory.separator_space, uucode.get(.general_category, 0x202F));
-
-    // WORD JOINER - should be Cf (format), NOT Zs
-    try std.testing.expectEqual(uucode.types.GeneralCategory.other_format, uucode.get(.general_category, 0x2060));
-
-    // ZERO WIDTH SPACE - should be Cf (format), NOT Zs
-    try std.testing.expectEqual(uucode.types.GeneralCategory.other_format, uucode.get(.general_category, 0x200B));
-}
+// Unicode general_category tests moved to locale.zig

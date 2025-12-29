@@ -25,15 +25,23 @@ pub fn build(b: *std.Build) void {
         .link_libc = true,
     });
 
-    // Core module (with uucode)
+    // Locale module (with uucode for Unicode character classification)
+    const locale_module = b.createModule(.{
+        .root_source_file = b.path("src/core/locale.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    if (uucode_dep) |dep| {
+        locale_module.addImport("uucode", dep.module("uucode"));
+    }
+
+    // Core module (uses locale)
     const core_module = b.createModule(.{
         .root_source_file = b.path("src/core/count.zig"),
         .target = target,
         .optimize = optimize,
     });
-    if (uucode_dep) |dep| {
-        core_module.addImport("uucode", dep.module("uucode"));
-    }
+    core_module.addImport("locale", locale_module);
     platform_module.addImport("count", core_module);
 
     // Main multicall binary (imports wc directly)
@@ -73,6 +81,10 @@ pub fn build(b: *std.Build) void {
 
     // Tests
     const test_step = b.step("test", "Run unit tests");
+    const locale_tests = b.addTest(.{
+        .root_module = locale_module,
+    });
+    test_step.dependOn(&b.addRunArtifact(locale_tests).step);
     const core_tests = b.addTest(.{
         .root_module = core_module,
     });
