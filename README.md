@@ -47,12 +47,7 @@ See the [live dashboard](https://rockorager.github.io/vutils/) for current bench
 
 ## GNU Test Conformance
 
-We track compatibility against the GNU coreutils test suite:
-
-```bash
-./tests/gnu/run-gnu-tests.sh        # Run all tests
-./tests/gnu/run-gnu-tests.sh --wc   # Run wc tests only
-```
+We track compatibility against the GNU coreutils test suite. Tests run automatically in CI on Linux.
 
 Results are published to the [dashboard](https://rockorager.github.io/vutils/).
 
@@ -79,15 +74,27 @@ zig build -Doptimize=ReleaseFast # Release build
 zig build test                   # Unit tests
 zig build integration            # Integration tests
 
-# Compare against other implementations
-./tests/compare_to_gnu.sh
-./tests/compare_to_bsd.sh
-
-# Run GNU test suite
-./tests/gnu/run-gnu-tests.sh
+# Compare against other implementations (macOS/Linux)
+./tests/compare_to_gnu.sh        # Requires: brew install coreutils
+./tests/compare_to_bsd.sh        # macOS only
 
 # Benchmarks
 ./bench/benchmark.sh
+```
+
+### GNU Test Suite
+
+The full GNU coreutils test suite runs in CI on Linux. To run locally:
+
+```bash
+# Linux only (or via Docker)
+./tests/gnu/run-gnu-tests.sh --wc
+
+# On macOS, use Docker:
+docker run --rm -v "$(pwd)":/vutils -w /vutils ubuntu:22.04 bash -c "
+  apt-get update && apt-get install -y build-essential autoconf automake texinfo gperf autopoint wget git && \
+  ./tests/gnu/run-gnu-tests.sh --setup
+"
 ```
 
 ## Why It's Fast

@@ -64,6 +64,8 @@ Inspired by [TigerStyle](https://github.com/tigerbeetle/tigerbeetle/blob/main/do
 - Run unit tests: `zig build test`
 - Run integration tests: `zig build integration`
 - Compare to BSD: `./tests/compare_to_bsd.sh`
+- Compare to GNU: `./tests/compare_to_gnu.sh` (requires `brew install coreutils`)
+- GNU test suite: Linux-only, runs in CI (or via Docker locally)
 
 ## Testing
 

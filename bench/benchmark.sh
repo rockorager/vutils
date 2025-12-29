@@ -89,10 +89,16 @@ time_cmd() {
     local times=()
     
     for i in $(seq 1 $runs); do
-        # Use perl for sub-second timing (portable)
-        local start_ms=$(perl -MTime::HiRes=time -e 'printf "%.0f", time * 1000')
-        eval "$cmd" >/dev/null 2>&1
-        local end_ms=$(perl -MTime::HiRes=time -e 'printf "%.0f", time * 1000')
+        # Use date for millisecond timing (GNU date has %N, macOS uses gdate)
+        if command -v gdate &>/dev/null; then
+            local start_ms=$(gdate +%s%3N)
+            eval "$cmd" >/dev/null 2>&1
+            local end_ms=$(gdate +%s%3N)
+        else
+            local start_ms=$(date +%s%3N)
+            eval "$cmd" >/dev/null 2>&1
+            local end_ms=$(date +%s%3N)
+        fi
         times+=( $((end_ms - start_ms)) )
     done
     
