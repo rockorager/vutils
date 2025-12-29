@@ -2,17 +2,11 @@
 //! Platform-optimized using GCD (macOS) or io_uring (Linux)
 
 const std = @import("std");
-const builtin = @import("builtin");
-
-const platform = switch (builtin.os.tag) {
-    .macos => @import("platform/macos.zig"),
-    .linux => @import("platform/linux.zig"),
-    else => @compileError("Unsupported platform"),
-};
-
+const platform = @import("platform");
 const Counts = platform.Counts;
 
-pub fn main() !void {
+/// Entry point for wc tool (called from multicall main)
+pub fn run() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();

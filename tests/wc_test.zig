@@ -4,7 +4,7 @@
 const std = @import("std");
 const testing = std.testing;
 
-const WC_PATH = "zig-out/bin/wc";
+const WC_PATH = "zig-out/bin/vwc";
 
 fn runWc(args: []const []const u8) ![]const u8 {
     var argv_buf: [32][]const u8 = undefined;

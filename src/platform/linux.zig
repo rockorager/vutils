@@ -2,7 +2,7 @@
 //! Uncompromising platform optimization
 
 const std = @import("std");
-const count = @import("../core/count.zig");
+const count = @import("count");
 const linux = std.os.linux;
 
 pub const Counts = count.Counts;

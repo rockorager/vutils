@@ -2,7 +2,7 @@
 //! Uncompromising platform optimization
 
 const std = @import("std");
-const count = @import("../core/count.zig");
+const count = @import("count");
 const c = @cImport({
     @cInclude("dispatch/dispatch.h");
     @cInclude("fcntl.h");

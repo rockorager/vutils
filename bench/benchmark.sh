@@ -33,7 +33,7 @@ GIT_BRANCH="$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || ech
 TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 # Tool paths
-WC_VUTILS="$REPO_ROOT/zig-out/bin/wc"
+WC_VUTILS="$REPO_ROOT/zig-out/bin/vwc"
 WC_BSD="/usr/bin/wc"
 WC_GNU="gwc"
 # uutils: use full path to avoid conflicts with coreutils

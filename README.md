@@ -2,6 +2,18 @@
 
 Fast, platform-optimized coreutils in Zig.
 
+## Installation
+
+```bash
+zig build -Doptimize=ReleaseFast
+# Creates: zig-out/bin/vutils, vwc, wc (symlinks)
+
+# Add to PATH
+export PATH="$PWD/zig-out/bin:$PATH"
+```
+
+Multicall binary: invoke as `vutils wc` or directly as `vwc`/`wc` via symlinks.
+
 ## Why We're Faster
 
 Benchmarked against macOS BSD `wc` and GNU `wc` on 50 files × 1.3MB each (66MB total):
@@ -41,7 +53,8 @@ We follow GNU wc / Unicode semantics:
 
 ```
 src/
-├── wc.zig                 # Binary entry point
+├── main.zig               # Multicall entry point (dispatches to tools)
+├── wc.zig                 # wc tool implementation
 ├── core/
 │   └── count.zig          # Pure functions (shared across platforms)
 └── platform/
