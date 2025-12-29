@@ -5,7 +5,8 @@
 
 set -e
 
-# Ensure UTF-8 locale for consistent Unicode whitespace handling
+# vutils always uses Unicode whitespace semantics regardless of locale.
+# Set UTF-8 locale so GNU wc matches our behavior for fair comparison.
 export LC_ALL=en_US.UTF-8
 
 WC_VUTILS="./zig-out/bin/vwc"
