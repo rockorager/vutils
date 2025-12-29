@@ -121,7 +121,7 @@ pub fn countFile(path: []const u8, mode: CountMode) FileResult {
 
 /// Read from stdin
 pub fn countStdin(mode: CountMode) Counts {
-    const stdin = std.io.getStdIn();
+    const stdin = std.fs.File.stdin();
     var buf: [READ_BUF_SIZE]u8 = undefined;
     var total = Counts{};
     var in_word = false;
