@@ -48,5 +48,30 @@
       "speedup_vs_uutils": 1.50,
       "speedup_vs_busybox": 2.17
     }
+  },
+  {
+    "binary": "wc",
+    "platform": "linux",
+    "arch": "x86_64",
+    "timestamp": "2025-12-29T19:26:14Z",
+    "git_commit": "550504a",
+    "git_branch": "main",
+    "test_config": {
+      "num_files": 50,
+      "total_mb": 50,
+      "warmup_runs": 2,
+      "bench_runs": 5
+    },
+    "results": {
+      "vutils_ms": 151,
+      "bsd_ms": 255,
+      "gnu_ms": null,
+      "uutils_ms": 159,
+      "busybox_ms": 299,
+      "speedup_vs_bsd": 1.68,
+      "speedup_vs_gnu": null,
+      "speedup_vs_uutils": 1.05,
+      "speedup_vs_busybox": 1.98
+    }
   }
 ]
