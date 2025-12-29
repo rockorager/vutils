@@ -66,12 +66,12 @@ const WHITESPACE_BITMAP_SIZE = 0x3001;
 const whitespace_bitmap: [WHITESPACE_BITMAP_SIZE / 8 + 1]u8 = blk: {
     var bm: [WHITESPACE_BITMAP_SIZE / 8 + 1]u8 = [_]u8{0} ** (WHITESPACE_BITMAP_SIZE / 8 + 1);
 
-    // All Unicode whitespace codepoints (exhaustive list)
+    // Whitespace codepoints matching GNU wc (libc iswspace behavior)
+    // Note: U+0085 (NEL) is NOT included - neither glibc nor macOS libc treat it as whitespace
     const whitespace_cps = [_]u21{
         // ASCII whitespace
         0x0009, 0x000A, 0x000B, 0x000C, 0x000D, 0x0020,
         // Latin-1 supplement
-        0x0085, // NEL (Next Line)
         0x00A0, // NO-BREAK SPACE
         // Unicode Zs category (space separators)
         0x1680, // OGHAM SPACE MARK
