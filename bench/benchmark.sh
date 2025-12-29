@@ -242,36 +242,127 @@ save_result() {
     log "Saved to $history_file"
 }
 
+# Benchmark binary sizes
+benchmark_size() {
+    log "Benchmarking binary sizes..."
+    
+    # Build ReleaseSmall for size comparison
+    log "Building ReleaseSmall..."
+    (cd "$REPO_ROOT" && zig build -Doptimize=ReleaseSmall) || {
+        error "ReleaseSmall build failed"
+        return 1
+    }
+    
+    local vutils_size=$(file_size "$REPO_ROOT/zig-out/bin/vutils")
+    local busybox_size=$(file_size "$(command -v busybox 2>/dev/null || echo /dev/null)")
+    
+    # Output JSON
+    cat <<EOF
+{
+  "type": "size",
+  "platform": "$PLATFORM",
+  "arch": "$ARCH",
+  "timestamp": "$TIMESTAMP",
+  "git_commit": "$GIT_COMMIT",
+  "git_branch": "$GIT_BRANCH",
+  "sizes_bytes": {
+    "vutils": $vutils_size,
+    "busybox": $busybox_size
+  }
+}
+EOF
+}
+
+print_size_summary() {
+    local json="$1"
+    
+    local vutils=$(echo "$json" | jq -r '.sizes_bytes.vutils // 0')
+    local busybox=$(echo "$json" | jq -r '.sizes_bytes.busybox // 0')
+    
+    {
+        echo
+        echo "═══════════════════════════════════════════════════════════"
+        echo " Binary Size (ReleaseSmall)"
+        echo " Platform: $PLATFORM/$ARCH | Commit: $GIT_COMMIT"
+        echo "═══════════════════════════════════════════════════════════"
+        echo
+        printf "  %-12s %10s\n" "vutils:" "$(numfmt_kb $vutils)"
+        [ "$busybox" -gt 0 ] && printf "  %-12s %10s  (vutils is %sx larger)\n" "busybox:" "$(numfmt_kb $busybox)" "$(echo "scale=1; $vutils / $busybox" | bc)"
+        echo
+    } >&2
+}
+
+# Get file size (cross-platform)
+file_size() {
+    local file="$1"
+    if [ ! -f "$file" ]; then
+        echo 0
+        return
+    fi
+    # macOS uses -f%z, Linux uses -c%s
+    stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null || echo 0
+}
+
+numfmt_kb() {
+    local bytes=$1
+    if [ "$bytes" -gt 1048576 ]; then
+        echo "$(echo "scale=1; $bytes / 1048576" | bc) MB"
+    elif [ "$bytes" -gt 1024 ]; then
+        echo "$(echo "scale=0; $bytes / 1024" | bc) KB"
+    else
+        echo "$bytes B"
+    fi
+}
+
 # Main
 main() {
     local save=false
-    local binary=""
+    local what="all"
     
     for arg in "$@"; do
         case "$arg" in
             --save) save=true ;;
-            wc) binary="wc" ;;
+            wc) what="wc" ;;
+            size) what="size" ;;
         esac
     done
     
-    # Build first
-    log "Building release binary..."
-    (cd "$REPO_ROOT" && zig build -Doptimize=ReleaseFast) || {
-        error "Build failed"
-        exit 1
-    }
-    
-    generate_fixtures
-    
-    # Run benchmarks
-    local result
-    case "${binary:-all}" in
-        wc|all)
-            result=$(benchmark_wc)
+    case "$what" in
+        size)
+            local result=$(benchmark_size)
+            print_size_summary "$result"
+            ;;
+        wc)
+            # Build first
+            log "Building release binary..."
+            (cd "$REPO_ROOT" && zig build -Doptimize=ReleaseFast) || {
+                error "Build failed"
+                exit 1
+            }
+            generate_fixtures
+            local result=$(benchmark_wc)
             print_summary "$result"
             if $save; then
                 save_result "$result"
             fi
+            ;;
+        all)
+            # Speed benchmark
+            log "Building release binary..."
+            (cd "$REPO_ROOT" && zig build -Doptimize=ReleaseFast) || {
+                error "Build failed"
+                exit 1
+            }
+            generate_fixtures
+            local speed_result=$(benchmark_wc)
+            print_summary "$speed_result"
+            if $save; then
+                save_result "$speed_result"
+            fi
+            
+            # Size benchmark
+            local size_result=$(benchmark_size)
+            print_size_summary "$size_result"
             ;;
     esac
 }
